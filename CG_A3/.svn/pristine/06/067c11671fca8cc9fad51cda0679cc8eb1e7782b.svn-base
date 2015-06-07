@@ -1,0 +1,60 @@
+// Platform Specific OpenGL Includes //
+#ifndef OPENGL_HEADERS_H
+#define OPENGL_HEADERS_H
+
+/**/
+// Windows Includes //
+// Change these on per platform basis //
+
+#include "Dependencies/glew/glew.h"
+#include "Dependencies\freeglut\freeglut.h"
+
+#include "Utils/stb_image.h"
+
+#define WINDOWS true
+/**/
+
+enum CMD_OPTIONS
+{
+	WIREFRAME,				// -w
+	TEXTURED,				// -t
+	TEXTURED_WITH_LIGHTING, // -l
+	GENERIC_WITH_LIGHTING,  // -g
+	NONE
+};
+struct MaterialProperties
+{
+	float ambient[3];
+	float diffuse[3];
+	float specular[3];
+	float emission[3];
+	float shininess;
+	float alpha;
+};
+
+struct LightProperties
+{
+	float ambient[3];
+	float diffuse[3];
+	float specular[3];
+	float lightPos[4];
+};
+
+/* OBJECT UPDATE FLAGS */
+
+#define UPDATE_LIGHTING_OVERHEAD 0
+#define UPDATE_LIGHTING_HEADLIGHT 1
+#define UPDATE_LIGHTING_NONE 2
+
+
+// Code for use on Unix Machines //
+/*
+#include <GL/glew.h>
+
+#ifdef __APPLE__
+#include <GLUT/glut.h>
+#else
+#include <GL/glut.h>
+#endif
+*/
+#endif 

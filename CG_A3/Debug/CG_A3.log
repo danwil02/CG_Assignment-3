@@ -1,0 +1,36 @@
+﻿Build started 7/06/2015 2:42:26 PM.
+     1>Project "C:\Users\Will\Documents\Visual Studio 2013\Projects\CG_A3\CG_A3.vcxproj" on node 2 (Build target(s)).
+     1>ClCompile:
+         C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\CL.exe /c /ZI /nologo /W3 /WX- /sdl /Od /Oy- /D _CRT_SECURE_NO_WARNINGS /D _MBCS /D _MBCS /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Fo"Debug\\" /Fd"Debug\vc120.pdb" /Gd /TP /analyze- /errorReport:prompt Rendering\Models\Water.cpp
+         Water.cpp
+     1>c:\users\will\documents\visual studio 2013\projects\cg_a3\rendering\models\water.cpp(149): warning C4244: 'argument' : conversion from 'int' to 'GLfloat', possible loss of data
+     1>c:\users\will\documents\visual studio 2013\projects\cg_a3\rendering\models\water.cpp(439): warning C4018: '>' : signed/unsigned mismatch
+     1>c:\users\will\documents\visual studio 2013\projects\cg_a3\rendering\models\water.cpp(570): warning C4018: '>' : signed/unsigned mismatch
+       Link:
+         C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\link.exe /ERRORREPORT:PROMPT /OUT:"C:\Users\Will\Documents\Visual Studio 2013\Projects\CG_A3\Debug\CG_A3.exe" /INCREMENTAL /NOLOGO /LIBPATH:Dependencies\glew /LIBPATH:Dependencies\freeglut /LIBPATH:Utils opengl32.lib freeglut.lib glew32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:\Users\Will\Documents\Visual Studio 2013\Projects\CG_A3\Debug\CG_A3.pdb" /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:\Users\Will\Documents\Visual Studio 2013\Projects\CG_A3\Debug\CG_A3.lib" /MACHINE:X86 Debug\InitGlew.obj
+         Debug\InitGlut.obj
+         Debug\main.obj
+         Debug\CameraManager.obj
+         Debug\LightingManager.obj
+         Debug\ModelsManager.obj
+         Debug\SceneManager.obj
+         Debug\ShaderManager.obj
+         Debug\Axes.obj
+         Debug\GenericObj.obj
+         Debug\Model.obj
+         Debug\TextureObj.obj
+         Debug\Triangle.obj
+         Debug\WireFrame.obj
+         Debug\SkyBox.obj
+         Debug\ShadowMap.obj
+         Debug\dummy.obj
+         Debug\Island.obj
+         Debug\Sun.obj
+         Debug\tiny_obj_loader.obj
+         Debug\Water.obj
+         CG_A3.vcxproj -> C:\Users\Will\Documents\Visual Studio 2013\Projects\CG_A3\Debug\CG_A3.exe
+     1>Done Building Project "C:\Users\Will\Documents\Visual Studio 2013\Projects\CG_A3\CG_A3.vcxproj" (Build target(s)).
+
+Build succeeded.
+
+Time Elapsed 00:00:02.04

@@ -1,0 +1,174 @@
+#include "InitGlut.h"
+#include "InitGlew.h"
+
+#include "../Monitor_GL.h"
+
+namespace Init
+{
+	ListenerInterface* InitGLUT::m_listener = NULL;
+	WindowInfo InitGLUT::m_windowInformation;
+
+	void InitGLUT::init(const WindowInfo& windowInfo,
+						 const ContextInfo& contextInfo,
+						 const FrameBufferInfo& framebufferInfo)
+	{
+		m_windowInformation = windowInfo;
+		//we need to create these fake arguments
+		int placeholder_argc = 1;
+		char *placeholder_argv[] = { "null", NULL };
+		glutInit(&placeholder_argc, placeholder_argv);
+
+		/* Commented for OSX
+		if (contextInfo.core)
+		{
+			glutInitContextVersion(contextInfo.major_version,
+								   contextInfo.minor_version);
+			glutInitContextProfile(GLUT_CORE_PROFILE);
+		}
+		else
+		{
+			// Version doesn't matter in Compatibility mode
+			glutInitContextProfile(GLUT_COMPATIBILITY_PROFILE);
+		} */
+
+		glutInitDisplayMode(framebufferInfo.displayFlags);
+		glutInitWindowPosition(windowInfo.posOnScreen_x,
+			windowInfo.posOnScreen_y);
+		glutInitWindowSize(windowInfo.width, windowInfo.height);
+
+		glutCreateWindow(windowInfo.windowName.c_str());
+
+		// GLUT Callbacks //
+		glutIdleFunc(idleCallback);
+		
+
+// Comment out for OSX	glutCloseFunc(closeCallback);
+		glutWMCloseFunc(closeCallback);
+
+		glutDisplayFunc(displayCallback);
+		glutReshapeFunc(reshapeCallback);
+		glutKeyboardFunc(keyBoardCallBack);
+		glutSpecialFunc(specialFuncCallBack);
+
+		glutMouseFunc(mouseButtonCallBack);
+		glutMotionFunc(mouseMovementCallBack);
+		glutPassiveMotionFunc(mousePassiveMovementCallBack);
+
+		// Initialise GLEW // 
+		InitGlew::Init();
+
+/* Comment out for OSX
+		if(WINDOWS)
+		{
+			glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE,
+						  GLUT_ACTION_GLUTMAINLOOP_RETURNS);
+		}
+*/
+		// Print OpenGL info // 
+		printOpenGLInfo(windowInfo, contextInfo);
+	}
+
+	// Start Rendering Loop // 
+	void InitGLUT::run()
+	{
+		std::cout << "GLUT:\tStart Running " << std::endl;
+		glutMainLoop();
+	}
+
+	void InitGLUT::printOpenGLInfo(const WindowInfo& windowInfo,
+								   const ContextInfo& contextInfo){
+
+		const unsigned char* renderer = glGetString(GL_RENDERER);
+		const unsigned char* vendor = glGetString(GL_VENDOR);
+		const unsigned char* version = glGetString(GL_VERSION);
+
+		std::cout << "GLUT:\tInitialised" << std::endl;
+		std::cout << "GLUT:\tVendor : " << vendor << std::endl;
+		std::cout << "GLUT:\tRenderer : " << renderer << std::endl;
+		std::cout << "GLUT:\tOpenGl version: " << version << std::endl << std::endl;
+	}
+
+	//
+	// Functions Used by SceneManager Obj
+	//
+	void InitGLUT::close()
+	{
+		std::cout << "GLUT:\t Finished" << std::endl;
+		exit(0);
+	}
+
+	void InitGLUT::idleCallback(void)
+	{
+		//do nothing, just redisplay
+		m_glutPostRedisplay();
+	}
+
+	void InitGLUT::displayCallback()
+	{
+		//cout << "InitGLUT::displayCallback()" << endl;
+		if (m_listener != NULL)
+		{
+			m_listener->notifyBeginFrame();
+			m_listener->notifyDisplayFrame();
+			//m_glFlush();
+			m_glutSwapBuffers();
+
+			m_listener->notifyEndFrame();
+		}
+	}
+
+	void InitGLUT::reshapeCallback(int width, int height)
+	{
+		if (m_windowInformation.isReshapable && m_listener != NULL)
+		{
+			m_listener->notifyReshape(width, height, m_windowInformation.width, m_windowInformation.height);
+		}
+		m_windowInformation.height = height;
+		m_windowInformation.width = width;
+	}
+
+	void InitGLUT::closeCallback()
+	{
+		close();
+	}
+
+	void InitGLUT::enterFullscreen()
+	{
+		glutFullScreen();
+	}
+
+	void InitGLUT::exitFullscreen()
+	{
+		glutReshapeWindow(m_windowInformation.width,m_windowInformation.height);
+	}
+
+	void InitGLUT::keyBoardCallBack(unsigned char key, int x, int y)
+	{
+		m_listener->notifyKeyboardEvent(key, x, y);
+	}
+
+	void InitGLUT::specialFuncCallBack(int key, int x, int y)
+	{
+		m_listener->notifySpecialKeyEvent(key, x, y);
+	}
+
+	void InitGLUT::mouseButtonCallBack(int button, int state, int x, int y)
+	{
+		m_listener->notifyMouseButton(button, state, x, y);
+	}
+	void InitGLUT::mouseMovementCallBack(int x, int y)
+	{
+		m_listener->notifyMouseMovement(x, y);
+	}
+
+	void InitGLUT::mousePassiveMovementCallBack(int x, int y)
+	{
+		m_listener->notifyPassiveMouseMovement(x, y);
+	}
+
+	void InitGLUT::setListener(ListenerInterface*& iListener)
+	{
+		m_listener = iListener;
+	}
+
+}

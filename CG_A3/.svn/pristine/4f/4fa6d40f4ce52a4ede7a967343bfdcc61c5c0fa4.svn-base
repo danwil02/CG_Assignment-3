@@ -1,0 +1,377 @@
+#include "SceneManager.h"
+#include "../Monitor_GL.h"
+using namespace Managers;
+
+SceneManager::SceneManager(int windowWidth, int windowHeight, CMD_OPTIONS options, std::string objDir)
+{
+	m_glEnable(GL_DEPTH_TEST);
+	m_backgroundState = 0;
+	m_shaderManager = new ShaderManager();
+	m_cameraManager = new CameraManager(windowWidth, windowHeight);
+	m_updateFlags = 0;
+	m_lightingState = 0; 
+
+	// Note compile all shaders here before initialising ModelManager //
+	switch (options)
+	{
+	case WIREFRAME:
+		m_shaderManager->createShader("wireframe",
+			"Shaders/wireframe.vert",
+			"Shaders/wireframe.frag");
+		m_wireFrame = true;
+		break;
+	case TEXTURED:
+		m_shaderManager->createShader("shaded",
+			"Shaders/shaded.vert",
+			"Shaders/shaded.frag");
+		m_wireFrame = false;
+		break;
+	case TEXTURED_WITH_LIGHTING:
+		break;
+	case GENERIC_WITH_LIGHTING:
+		m_shaderManager->createShader("generic_lighting",
+			"Shaders/generic_lighting.vert",
+			"Shaders/generic_lighting.frag");
+		m_wireFrame = false;
+		break;
+	default:
+		m_shaderManager->createShader("minimal",
+			"Shaders/minimal.vert",
+			"Shaders/minimal.frag");
+		m_wireFrame = false;
+	}
+/*	m_shaderManager->createShader("axes",
+		"Shaders/axes.vert",
+		"Shaders/axes.frag");
+*/	
+	m_shaderManager->createShader("skybox",
+		"Shaders/skybox.vert",
+		"Shaders/skybox.frag");
+
+	m_shaderManager->createShader("sun",
+		"Shaders/sun.vert",
+		"Shaders/sun.frag");
+
+
+	if (m_wireFrame)
+	{
+		m_glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // Wireframe mode
+		m_wireFrame = false;
+	}
+	else
+	{
+		m_glPolygonMode(GL_FRONT_AND_BACK, GL_FILL); // Fill mode
+		m_wireFrame = true;
+	}
+
+	// ModelManager creates all objects to be used in scene //
+	m_modelsManager = new ModelsManager(m_shaderManager, m_cameraManager, options, objDir);
+}
+
+SceneManager::~SceneManager()
+{
+	delete m_shaderManager;
+	delete m_shaderManager;
+}
+
+/*void renderBitmapString(
+	float x,
+	float y,
+	void *font,
+	string str) {
+	glRasterPos2f(x, y);
+	for (auto c : str)
+	{
+		glutBitmapCharacter(font, c);
+	}
+}*/
+
+void SceneManager::notifyBeginFrame()
+{
+	m_modelsManager->Update(m_updateFlags);
+	m_deltaTime = glutGet(GLUT_ELAPSED_TIME) - m_timePrev; // Time in milliseconds
+	m_timePrev = glutGet(GLUT_ELAPSED_TIME);
+
+	m_fps_disp_counter += m_deltaTime;
+	if (m_fps_disp_counter > 1000)
+	{
+		string out = "FPS " + to_string(1000 / m_deltaTime);
+		//renderBitmapString(1.0, 5.0, GLUT_BITMAP_HELVETICA_10, out);
+		//cout << "FPS " <<  endl;
+		m_fps_disp_counter = 0;
+	}
+	m_cameraManager->input->difftime = m_deltaTime / 1000; // seconds
+	m_cameraManager->calcCameraFromInput();
+}
+
+
+void SceneManager::notifyDisplayFrame()
+{
+	m_glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LESS);
+
+	// Anti-aliasing
+	glEnable(GL_LINE_SMOOTH);
+	//glEnable(GL_POLYGON_SMOOTH);
+	glDisable(GL_CULL_FACE);
+	// Blending 
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	m_glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	/*
+	GLfloat density = 0.6;
+
+	GLfloat fogColor[4] = { 0.5, 0.5, 0.5, 1.0 };
+	glEnable(GL_FOG); //enable the fog
+	glFogi(GL_FOG_MODE, GL_EXP2); //set the fog mode to GL_EXP2
+
+	glFogfv(GL_FOG_COLOR, fogColor); //set the fog color to our color chosen above
+
+	glFogf(GL_FOG_DENSITY, density); //set the density to the value above
+
+	glHint(GL_FOG_HINT, GL_NICEST); // set the fog to look the nicest, may slow down on older cards
+	*/
+	switch (m_backgroundState)
+	{
+	case 0:
+		glClearColor(0.3, 0.3, 0.3, 1.0); // Grey
+		break;
+	case 1:
+		glClearColor(0.3, 0.3, 0.4, 1.0); // Blueish		
+		break;
+	case 2:
+		glClearColor(0.4, 0.3, 0.3, 1.0); // Reddish
+		break;
+	case 3:
+		glClearColor(0.3, 0.4, 0.3, 1.0); // Greenish
+		break;
+	}
+	m_modelsManager->Draw();
+}
+
+void SceneManager::notifyEndFrame()
+{
+	m_cameraManager->Update();
+/*	m_cameraManager->input->left = false;
+	m_cameraManager->input->right = false;
+	m_cameraManager->input->forward = false;
+	m_cameraManager->input->backward = false;
+*/
+}
+
+void SceneManager::notifyReshape(int width,
+								 int height,
+								 int previous_width,
+								 int previous_height)
+{
+	m_cameraManager->upDateProjection((float)width , (float)height);
+}
+
+void SceneManager::notifyKeyboardEvent(unsigned char key, int x, int y)
+{
+	switch (key)
+	{
+	case 'a':
+		//m_cameraManager->calcNewCameraPos(-0.5f, 0, 0, 0, 0, 0);
+		m_cameraManager->input->left = true;
+		break;
+	case 'd':
+		//m_cameraManager->calcNewCameraPos(0.5f, 0, 0, 0, 0, 0);
+		m_cameraManager->input->right = true;
+		break;
+	case 'w':
+		//m_cameraManager->calcNewCameraPos(0, 0, 0.5f, 0, 0, 0);
+		m_cameraManager->input->forward = true;
+		break;
+	case 's':
+		//m_cameraManager->calcNewCameraPos(0, 0, -0.5f, 0, 0, 0);
+		m_cameraManager->input->backward = true;
+		break;
+	}
+
+	if (key == 27)
+	{
+		exit(0);
+	}
+	if (key == 'r')
+	{
+		// Reset view //
+		m_cameraManager->resetCamera();
+	}
+	if (key == 'v')
+	{
+		if (m_wireFrame)
+		{
+			m_glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // Wireframe mode
+			m_wireFrame = false;
+		}
+		else
+		{
+			m_glPolygonMode(GL_FRONT_AND_BACK, GL_FILL); // Fill mode
+			m_wireFrame = true;
+		}
+	}
+	if (key == 'b')
+	{
+		m_backgroundState = (m_backgroundState + 1) % NUM_BACKGROUND_STATES;
+		//std::cout << "Background state = " << m_backgroundState << std::endl;
+	}
+	if (key == 'l')
+	{
+		m_lightingState = (m_lightingState + 1) % NUM_LIGHT_STATES;
+		switch (m_lightingState)
+		{
+		case 0:
+			m_updateFlags = UPDATE_LIGHTING_OVERHEAD;
+			break;
+		case 1:
+			m_updateFlags = UPDATE_LIGHTING_HEADLIGHT;
+			break;
+		case 2:
+			m_updateFlags = UPDATE_LIGHTING_NONE;
+			break;
+		}
+		//std::cout << "m_lightingState = " << m_lightingState << std::endl;
+	}
+}
+
+void SceneManager::notifyKeyboardReleaseEvent(unsigned char key, int x, int y)
+{
+	switch (key)
+	{
+	case 'a':
+		//m_cameraManager->calcNewCameraPos(-0.5f, 0, 0, 0, 0, 0);
+		m_cameraManager->input->left = false;
+		break;
+	case 'd':
+		//m_cameraManager->calcNewCameraPos(0.5f, 0, 0, 0, 0, 0);
+		m_cameraManager->input->right = false;
+		break;
+	case 'w':
+		//m_cameraManager->calcNewCameraPos(0, 0, 0.5f, 0, 0, 0);
+		m_cameraManager->input->forward = false;
+		break;
+	case 's':
+		//m_cameraManager->calcNewCameraPos(0, 0, -0.5f, 0, 0, 0);
+		m_cameraManager->input->backward = false;
+		break;
+	}
+}
+
+
+void SceneManager::notifySpecialKeyEvent(int key, int x, int y)
+{
+	switch (key)
+	{
+	case GLUT_KEY_LEFT:
+		//m_cameraManager->calcNewCameraPos(-0.5f, 0, 0, 0, 0, 0);
+		m_cameraManager->input->left = true;
+		break;
+	case GLUT_KEY_RIGHT:
+		//m_cameraManager->calcNewCameraPos(0.5f, 0, 0, 0, 0, 0);
+		m_cameraManager->input->right = true;
+		break;
+	case GLUT_KEY_UP:
+		//m_cameraManager->calcNewCameraPos(0, 0, 0.5f, 0, 0, 0);
+		m_cameraManager->input->forward = true;
+		break;
+	case GLUT_KEY_DOWN:
+		//m_cameraManager->calcNewCameraPos(0, 0, -0.5f, 0, 0, 0);
+		m_cameraManager->input->backward = true;
+		break;
+	case GLUT_KEY_CTRL_L:
+		m_cameraManager->input->down = true;
+		break;
+	case GLUT_KEY_SHIFT_L:
+		m_cameraManager->input->up = true;
+		break;
+	}
+}
+
+void SceneManager::notifySpecialKeyReleaseEvent(int key, int x, int y)
+{
+	switch (key)
+	{
+	case GLUT_KEY_LEFT:
+		//m_cameraManager->calcNewCameraPos(-0.5f, 0, 0, 0, 0, 0);
+		m_cameraManager->input->left = false;
+		break;
+	case GLUT_KEY_RIGHT:
+		//m_cameraManager->calcNewCameraPos(0.5f, 0, 0, 0, 0, 0);
+		m_cameraManager->input->right = false;
+		break;
+	case GLUT_KEY_UP:
+		//m_cameraManager->calcNewCameraPos(0, 0, 0.5f, 0, 0, 0);
+		m_cameraManager->input->forward = false;
+		break;
+	case GLUT_KEY_DOWN:
+		//m_cameraManager->calcNewCameraPos(0, 0, -0.5f, 0, 0, 0);
+		m_cameraManager->input->backward = false;
+		break;
+	case GLUT_KEY_CTRL_L:
+		m_cameraManager->input->down = false;
+		break;
+	case GLUT_KEY_SHIFT_L:
+		m_cameraManager->input->up = false;
+		break;
+	}
+}
+
+void SceneManager::notifyMouseButton(int button, int state, int x, int y)
+{
+	//float speed = 0.5f;
+	if (button == GLUT_RIGHT_BUTTON)
+	{
+		if (state == GLUT_DOWN)
+		{
+			m_zoom = true;
+			m_y_origin = y;
+		}
+		else
+		{
+			m_zoom = false;
+		}
+	}
+		
+	if(button == GLUT_LEFT_BUTTON)
+	{
+		if(state == GLUT_DOWN)
+		{
+			m_move = true;
+			m_d_rot_x_origin = x;
+			m_d_rot_y_origin = y;
+		}
+		else
+		{
+			m_move = false;
+		}
+	}
+}
+
+void SceneManager::notifyMouseMovement(int x, int y)
+{
+	int speed = 0.4;
+	if (m_zoom)
+	{
+		float dz = (y - m_y_origin)*0.2;
+		if (m_y_origin != y)
+		{
+			m_y_origin = y;
+		}
+		m_cameraManager->calcNewCameraPos(0, 0, dz, 0, 0, 0);
+	}
+	if (m_move)
+	{
+		int dx = (x - m_x_origin);
+		m_x_origin = x;
+		m_cameraManager->calcNewCameraPos(0, 0, 0, 0, dx, 0);
+	}
+}
+
+void SceneManager::notifyPassiveMouseMovement(int x, int y)
+{
+	glutSetCursor(GLUT_CURSOR_NONE);
+	m_cameraManager->input->x = x;
+	m_cameraManager->input->y = y;
+}

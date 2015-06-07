@@ -1,0 +1,9 @@
+linearFog
+
+
+
+Fog is the last thing you should do before you return
+Apply gamma correction after fog.
+
+skybox tip: cut out squares in gimp/photoshop for the +- shaped image.
+

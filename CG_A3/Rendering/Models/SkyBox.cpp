@@ -1,0 +1,307 @@
+#include "SkyBox.h"
+
+using namespace Rendering;
+using namespace Models;
+using namespace std;
+
+#include "../../Utils/stb_image.h"
+
+#define BACK_ID		0
+#define FRONT_ID	1
+#define BOTTOM_ID	2
+#define TOP_ID		3
+#define LEFT_ID		4
+#define RIGHT_ID	5
+
+SkyBox::SkyBox()
+{
+	m_x = 0;
+	m_y = 0;
+	m_z = 0;
+	m_width = 5000;
+	m_height = 5000;
+	m_length = 5000;
+
+	// This centers the sky box around (x, y, z)
+	m_x = m_x - m_width / 2;
+	m_y = m_y - m_height / 2;
+	m_z = m_z - m_length / 2;
+}
+
+
+SkyBox::~SkyBox()
+{
+}
+
+void SkyBox::Create()
+{
+	GLuint texId;
+	unsigned char* texData;
+	int x, y, n;
+	string rootDir = ".\\Rendering\\Models\\TestObjs\\SkyBoxes\\blueCloud";
+	string skyboxFolder = "";
+	string dir = rootDir + '\\' + skyboxFolder + '\\';
+
+	GLuint vao;
+	GLuint vbo[2];
+
+	vector<glm::vec3> vertices;
+	vector<glm::vec2> texCoords;
+
+	for (int i = 0; i < 6; i++)
+	{
+		glGenVertexArrays(1, &vao);
+		glBindVertexArray(vao);
+
+		glGenBuffers(2, vbo);
+	
+		vertAndTexData(vertices, texCoords, i);
+
+		for (int j = 0; j < 4; j++)
+		{
+			// Flip tex coords for opengl //
+			texCoords[j].y = 1 - texCoords[j].y;
+		}
+
+
+		glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
+		glBufferData(GL_ARRAY_BUFFER, vertices.size()*sizeof(glm::vec3), 
+			&vertices[0], GL_STATIC_DRAW);
+		int vertLoc = glGetAttribLocation(m_shader, "a_vertex");
+		glEnableVertexAttribArray(vertLoc); // Turn on the state machine
+		glVertexAttribPointer(vertLoc, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+		// Allocate memory and copy colour values to GPU // 
+		glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+		glBufferData(GL_ARRAY_BUFFER, texCoords.size()*sizeof(glm::vec2),
+			&texCoords[0], GL_STATIC_DRAW);
+		int texLoc = glGetAttribLocation(m_shader, "a_texCoords");
+		glEnableVertexAttribArray(texLoc); // Turn on the state machine
+		glVertexAttribPointer(texLoc, 2, GL_FLOAT, GL_FALSE, 0, 0);
+	
+		vertices.clear();
+		texCoords.clear();
+
+		m_vao.push_back(vao);
+		m_vbos.push_back(vbo[0]);
+		m_vbos.push_back(vbo[1]);
+	}
+
+	glActiveTexture(GL_TEXTURE0);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	for (int i = 0; i < 6; i++)
+	{
+		glGenTextures(1, &texId);
+		m_texture.push_back(texId);
+	}
+
+	// Back Texture //
+	glBindTexture(GL_TEXTURE_2D, m_texture[BACK_ID]);
+	texData = stbi_load(string(dir+ "back.jpg").c_str(), &x, &y, &n, 3); // Want RGB hence 3
+	if (x <= 0 || y <= 0 || n < 0)
+	{
+		cout << "ERROR: stbi_load failed" << endl;
+	}
+	if (n == 3) {
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, x, y, 0, GL_RGB, GL_UNSIGNED_BYTE, texData);
+	}
+	glGenerateMipmap(GL_TEXTURE_2D);
+	stbi_image_free(texData);
+
+	// Front //
+	glBindTexture(GL_TEXTURE_2D, m_texture[FRONT_ID]);
+	texData = stbi_load(string(dir + "front.jpg").c_str(), &x, &y, &n, 3); // Want RGB hence 3
+	if (x <= 0 || y <= 0 || n < 0)
+	{
+		cout << "ERROR: stbi_load failed" << endl;
+	}
+	if (n == 3) {
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, x, y, 0, GL_RGB, GL_UNSIGNED_BYTE, texData);
+	}
+	glGenerateMipmap(GL_TEXTURE_2D);
+	stbi_image_free(texData);
+
+	// Bottom //
+	glBindTexture(GL_TEXTURE_2D, m_texture[BOTTOM_ID]);
+	texData = stbi_load(string(dir + "bottom.jpg").c_str(), &x, &y, &n, 3); // Want RGB hence 3
+	if (x <= 0 || y <= 0 || n < 0)
+	{
+		cout << "ERROR: stbi_load failed" << endl;
+	}
+	if (n == 3) {
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, x, y, 0, GL_RGB, GL_UNSIGNED_BYTE, texData);
+	}
+	glGenerateMipmap(GL_TEXTURE_2D);
+	stbi_image_free(texData);
+
+	// Top //
+	glBindTexture(GL_TEXTURE_2D, m_texture[TOP_ID]);
+	texData = stbi_load(string(dir + "top.jpg").c_str(), &x, &y, &n, 3); // Want RGB hence 3
+	if (x <= 0 || y <= 0 || n < 0)
+	{
+		cout << "ERROR: stbi_load failed" << endl;
+	}
+	if (n == 3) {
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, x, y, 0, GL_RGB, GL_UNSIGNED_BYTE, texData);
+	}
+	glGenerateMipmap(GL_TEXTURE_2D);
+	stbi_image_free(texData);
+
+	// Left //
+	glBindTexture(GL_TEXTURE_2D, m_texture[LEFT_ID]);
+	texData = stbi_load(string(dir + "left.jpg").c_str(), &x, &y, &n, 3); // Want RGB hence 3
+	if (x <= 0 || y <= 0 || n < 0)
+	{
+		cout << "ERROR: stbi_load failed" << endl;
+	}
+	if (n == 3) {
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, x, y, 0, GL_RGB, GL_UNSIGNED_BYTE, texData);
+	}
+	glGenerateMipmap(GL_TEXTURE_2D);
+	stbi_image_free(texData);
+
+	// Right //
+	glBindTexture(GL_TEXTURE_2D, m_texture[RIGHT_ID]);
+	texData = stbi_load(string(dir + "right.jpg").c_str(), &x, &y, &n, 3); // Want RGB hence 3
+	if (x <= 0 || y <= 0 || n < 0)
+	{
+		cout << "ERROR: stbi_load failed" << endl;
+	}
+	if (n == 3) {
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, x, y, 0, GL_RGB, GL_UNSIGNED_BYTE, texData);
+	}
+	glGenerateMipmap(GL_TEXTURE_2D);
+	stbi_image_free(texData);
+}
+
+void SkyBox::Update(unsigned int flags)
+{
+
+}
+
+void SkyBox::Draw()
+{
+	glUseProgram(m_shader);
+
+	// Grab the latest version of the camera matrix //
+	glm::mat4 cameraMat = m_cameraManager->getCameraPos();
+
+	GLuint cameraMatHandle = glGetUniformLocation(m_shader, "camera_matrix");
+	if (cameraMatHandle == -1)
+	{
+		exit(13);
+	}
+	glUniformMatrix4fv(cameraMatHandle, 1, false, glm::value_ptr(cameraMat));
+
+	// Grab the latest version of the projection matrix //
+	glm::mat4 projMat = m_cameraManager->getProjectionMat();
+	GLuint projMatHandle = glGetUniformLocation(m_shader, "projection_matrix");
+	if (projMatHandle == -1)
+	{
+		exit(14);
+	}
+	glUniformMatrix4fv(projMatHandle, 1, false, glm::value_ptr(projMat));
+
+	glActiveTexture(GL_TEXTURE0);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	//glDisable(GL_DEPTH_TEST);
+
+	for (int i = 0; i < m_vao.size(); i++)
+	{
+		glBindVertexArray(m_vao[i]);
+		glBindTexture(GL_TEXTURE_2D, m_texture[i]);
+		glDrawArrays(GL_QUADS, 0, 4);
+	}
+	glBindTexture(GL_TEXTURE_2D, 0);
+	//glEnable(GL_DEPTH_TEST);
+	glBindVertexArray(0);
+}
+
+void SkyBox::vertAndTexData(vector<glm::vec3>& vertices, vector<glm::vec2>& texCoords, int i)
+{
+	switch (i)
+	{
+	case 0:
+		// Assign the texture coordinates and vertices for the BACK Side
+		texCoords.push_back(glm::vec2(1.0f, 0.0f)); 
+		texCoords.push_back(glm::vec2(1.0f, 1.0f));
+		texCoords.push_back(glm::vec2(0.0f, 1.0f)); 
+		texCoords.push_back(glm::vec2(0.0f, 0.0f)); 
+		vertices.push_back(glm::vec3(m_x + m_width, m_y, m_z));
+		vertices.push_back(glm::vec3(m_x + m_width, m_y + m_height, m_z));
+		vertices.push_back(glm::vec3(m_x, m_y + m_height, m_z));
+		vertices.push_back(glm::vec3(m_x, m_y, m_z));
+		break;
+	case 1:
+		// Assign the texture coordinates and vertices for the FRONT Side
+		texCoords.push_back(glm::vec2(1.0f, 0.0f));
+		texCoords.push_back(glm::vec2(1.0f, 1.0f));
+		texCoords.push_back(glm::vec2(0.0f, 1.0f));
+		texCoords.push_back(glm::vec2(0.0f, 0.0f));
+		vertices.push_back(glm::vec3(m_x, m_y, m_z + m_length));
+		vertices.push_back(glm::vec3(m_x, m_y + m_height, m_z + m_length));
+		vertices.push_back(glm::vec3(m_x + m_width, m_y + m_height, m_z + m_length));
+		vertices.push_back(glm::vec3(m_x + m_width, m_y, m_z + m_length));
+		break;
+	case 2:
+		// Assign the texture coordinates and vertices for the BOTTOM Side
+		texCoords.push_back(glm::vec2(1.0f, 0.0f));
+		texCoords.push_back(glm::vec2(1.0f, 1.0f));
+		texCoords.push_back(glm::vec2(0.0f, 1.0f));
+		texCoords.push_back(glm::vec2(0.0f, 0.0f));
+		vertices.push_back(glm::vec3(m_x, m_y, m_z));
+		vertices.push_back(glm::vec3(m_x, m_y, m_z + m_length));
+		vertices.push_back(glm::vec3(m_x + m_width, m_y, m_z + m_length));
+		vertices.push_back(glm::vec3(m_x + m_width, m_y, m_z));
+		break;
+	case 3:
+
+
+		// Assign the texture coordinates and vertices for the TOP Side
+		texCoords.push_back(glm::vec2(1.0f, 0.0f));
+		vertices.push_back(glm::vec3(m_x, m_y + m_height, m_z + m_length));
+		texCoords.push_back(glm::vec2(1.0f, 1.0f));
+		vertices.push_back(glm::vec3(m_x, m_y + m_height, m_z));
+		texCoords.push_back(glm::vec2(0.0f, 1.0f));
+		vertices.push_back(glm::vec3(m_x + m_width, m_y + m_height, m_z));
+		texCoords.push_back(glm::vec2(0.0f, 0.0f));
+		vertices.push_back(glm::vec3(m_x + m_width, m_y + m_height, m_z + m_length));
+
+
+		break;
+	case 4:
+
+
+		// Assign the texture coordinates and vertices for the LEFT Side
+		texCoords.push_back(glm::vec2(1.0f, 0.0f));
+		vertices.push_back(glm::vec3(m_x, m_y, m_z));
+		texCoords.push_back(glm::vec2(1.0f, 1.0f));
+		vertices.push_back(glm::vec3(m_x, m_y + m_height, m_z));
+		texCoords.push_back(glm::vec2(0.0f, 1.0f));
+		vertices.push_back(glm::vec3(m_x, m_y + m_height, m_z + m_length));
+		texCoords.push_back(glm::vec2(0.0f, 0.0f));
+		vertices.push_back(glm::vec3(m_x, m_y, m_z + m_length));
+
+
+		break;
+	case 5:
+
+
+		// Assign the texture coordinates and vertices for the RIGHT Side
+		texCoords.push_back(glm::vec2(1.0f, 0.0f));
+		vertices.push_back(glm::vec3(m_x + m_width, m_y, m_z + m_length));
+		texCoords.push_back(glm::vec2(1.0f, 1.0f));
+		vertices.push_back(glm::vec3(m_x + m_width, m_y + m_height, m_z + m_length));
+		texCoords.push_back(glm::vec2(0.0f, 1.0f));
+		vertices.push_back(glm::vec3(m_x + m_width, m_y + m_height, m_z));
+		texCoords.push_back(glm::vec2(0.0f, 0.0f));
+		vertices.push_back(glm::vec3(m_x + m_width, m_y, m_z));
+
+
+		break;
+	}
+}

@@ -1,0 +1,450 @@
+#include "Water.h"
+
+using namespace Rendering;
+using namespace Models;
+using namespace std;
+
+#define DIMENSION 50 // Creating a DIMENSION * DIMENSION plane with DIMENSION^2 vertices
+#define DIM_X_MIN -1000
+#define DIM_X_MAX 1000
+#define DIM_Z_MIN -1000
+#define DIM_Z_MAX 1000
+#define Y_START_POS 0
+
+Water::Water()
+{
+	m_scaleMat = glm::scale(glm::mat4(1), glm::vec3(1, 1, 1));
+	m_posMat = glm::translate(glm::mat4(1), glm::vec3(0, 0, 0));
+}
+
+
+Water::~Water()
+{
+}
+
+void Water::Create(std::string inputfile)
+{
+	cout << "Water . . .";
+	GLuint vao;
+	GLuint vbo[2];
+
+	vector<glm::vec3> vertexArray;
+	vector<glm::vec3> triangleArray;
+	vector<int> indices;
+	// Vertices //
+
+	float x_y_step = (DIM_X_MAX - DIM_X_MIN) / ((float)DIMENSION)*2;
+	float coord_offset = DIM_X_MIN; //-0.5 * (float)x_y_step;
+
+	// Starting with the first height in the negative xy quadrant, create n vertices in the positive
+	// x direction. Move in the positive y direction and create n more in +ve x ete until complete.
+	float x_coord = 0;
+	float y_coord = 0;
+	float z_coord = 0;
+	for (int y = 0; y<DIMENSION; y++)
+	{
+		for (int x = 0; x<DIMENSION; x++)
+		{
+			// Assign each vertex coord x,y,z
+			x_coord = DIM_X_MIN + coord_offset + x_y_step * (x + 1);
+			z_coord = DIM_Z_MIN + coord_offset + x_y_step * (y + 1);
+			y_coord = Y_START_POS;
+
+			glm::vec3 vertex;
+			vertex.x = x_coord;
+			vertex.y = y_coord;
+			vertex.z = z_coord;
+			vertexArray.push_back(vertex);
+		}
+	}
+
+	//
+	// Create triangles from vertex points
+	//
+	for (int i = 0; i<(DIMENSION - 1); i++)
+	{
+		for (int j = 0; j<(DIMENSION - 1); j++)
+		{
+			//	uint itr[] = {0, 1, 2, 3};
+			//	std::vector<uint> iterators(itr, itr + sizeof(itr)/sizeof(uint));
+			// First triangle in square (as seen from top view on xy plane)
+			indices.push_back(j + i*DIMENSION);
+			indices.push_back(j + 1 + i*DIMENSION);
+			indices.push_back(j + DIMENSION + i*DIMENSION);
+			// Second triangle in square
+			indices.push_back(j + 1 + i*DIMENSION);
+			indices.push_back(j + DIMENSION + i*DIMENSION);
+			indices.push_back(j + DIMENSION + 1 + i*DIMENSION);
+		}
+	}
+
+	glGenVertexArrays(1, &vao);
+	glBindVertexArray(vao);
+	glGenBuffers(2, vbo);
+
+	// Vertices // 
+	glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
+	glBufferData(GL_ARRAY_BUFFER, vertexArray.size()*sizeof(glm::vec3),
+		&vertexArray[0], GL_STATIC_DRAW);
+	int vertLoc = glGetAttribLocation(m_shader, "a_vertex");
+	glEnableVertexAttribArray(vertLoc);
+	glVertexAttribPointer(vertLoc, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+	// Indices //
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vbo[1]);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size()*sizeof(int),
+		&indices[0], GL_STATIC_DRAW);
+	m_vao.push_back(vao);
+	m_vbos.push_back(vbo[0]);
+	//m_vbos.push_back(vbo[1]);
+	m_indiciesLength.push_back(indices.size());
+
+	tinyobj::material_t material;
+	float ambient[3] = { 0.1f, 0.3f, 1.0f };
+	float diffuse[3] = { 0.2f, 0.5f, 1.0f };
+	float specular[3] = { 1.0f, 1.0f, 1.0f };
+	for (int i = 0; i < 3; i++)
+	{
+		material.ambient[i] = ambient[i];
+		material.diffuse[i] = diffuse[i];
+		material.specular[i] = specular[i];
+	}
+	material.shininess = 240.0f;
+	material.dissolve = 1.0f;
+	material.emission[0] = 0.0;
+	material.emission[1] = 0.0;
+	material.emission[2] = 0.0;
+
+	normalMapTex();
+	
+	setupLightingProperties(material);
+	createLight(0);
+	cout << " Done" << endl;
+}
+
+void Water::Draw()
+{
+	glUseProgram(m_shader);
+	
+	// Shadow Map //
+	m_sMap->bindDepthTexture();
+
+	// Push Matrices, material props, lighting props //
+	pushMatrices();
+	pushLightingPropsToShader(m_lightingState);
+	pushMaterialPropsToShader(0);
+
+	// Normal Map Texture //
+	m_sMap->bindDepthTexture(m_shader);
+	int nMapHandle = glGetUniformLocation(m_shader, "nMap");
+	glActiveTexture(GL_TEXTURE5);
+	glBindTexture(GL_TEXTURE_2D, m_nMapTexId);
+	glUniform1i(nMapHandle, 5);
+
+	// Draw Vertices //
+	int i = 0;
+	glBindVertexArray(m_vao[i]);
+	glDrawElements(GL_TRIANGLES,
+		m_indiciesLength[0],
+		GL_UNSIGNED_INT,
+		(void*)0);
+//	glDrawArrays(GL_TRIANGLES, 0, m_indiciesLength[0]);
+
+	glBindVertexArray(0);
+}
+
+void Water::Update(unsigned int flags)
+{
+	if (flags == UPDATE_LIGHTING_OVERHEAD ||
+		flags == UPDATE_LIGHTING_HEADLIGHT ||
+		flags == UPDATE_LIGHTING_NONE)
+	{
+		m_lightingState = flags;
+	}
+}
+
+
+void Water::pushMatrices()
+{
+	int depthBiasMVPHandle = glGetUniformLocation(m_shader, "DepthBiasMVP");
+	int lightposHandle = glGetUniformLocation(m_shader, "light_pos");
+	int projHandle = glGetUniformLocation(m_shader, "projection_matrix");
+
+	glm::mat4 depthBiasMVP = m_sMap->getDepthBiasMVP();
+	glUniformMatrix4fv(depthBiasMVPHandle, 1, false, glm::value_ptr(depthBiasMVP));
+
+	// Grab the latest version of the camera matrix //
+	m_cameraMat = m_cameraManager->getCameraPos();
+	//cameraMat = glm::translate(cameraMat, glm::vec3(m_x_offset, 0, 0));
+	GLuint cameraMatHandle = glGetUniformLocation(m_shader, "camera_matrix");
+	glUniformMatrix4fv(cameraMatHandle, 1, false, glm::value_ptr(m_cameraMat));
+
+	// Grab the latest version of the projection matrix //
+	glm::mat4 projMat = m_cameraManager->getProjectionMat();
+	GLuint projMatHandle = glGetUniformLocation(m_shader, "projection_matrix");
+	glUniformMatrix4fv(projMatHandle, 1, false, glm::value_ptr(projMat));
+
+	// Update the modle view matrix //
+	m_modleViewMat = m_scaleMat * m_posMat;
+	GLuint modleview = glGetUniformLocation(m_shader, "modleview_matrix");
+	glUniformMatrix4fv(modleview, 1, false, glm::value_ptr(m_modleViewMat));
+	
+	// Normal Matrix //
+	glm::mat3 normalMat(1);
+	normalMat = glm::mat3(m_cameraMat*m_scaleMat);
+	int normHandle = glGetUniformLocation(m_shader, "normal_matrix");
+	glUniformMatrix3fv(normHandle, 1, false, glm::value_ptr(normalMat));
+}
+
+void Water::setTexUnit(unsigned int unit)
+{
+	glActiveTexture(GL_TEXTURE0 + unit);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_NEAREST);
+	// Maximum texture unit number = GL_TEXTURE31
+}
+
+void Water::normalMapTex()
+{
+	setTexUnit(5);
+	glGenTextures(1, &m_nMapTexId);
+	glBindTexture(GL_TEXTURE_2D, m_nMapTexId);
+	int x, y, n;
+	string texPath = "Rendering/Models/TestObjs/Water/Textures/normalmap.bmp";
+
+	unsigned char* texData = stbi_load(texPath.c_str(), &x, &y, &n, 0);
+
+	if (x <= 0 || y <= 0 || n < 0)
+	{
+		cout << "ERROR: stbi_load failed" << endl;
+	}
+
+	if (n == 3) {
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, x, y, 0, GL_RGB, GL_UNSIGNED_BYTE, texData);
+	}
+	else if (n == 4)
+	{
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, x, y, 0, GL_RGBA, GL_UNSIGNED_BYTE, texData);
+	}
+	else {
+		fprintf(stderr, "Image pixels are not RGB. You will need to change the glTexImage2D command.");
+	}
+	glGenerateMipmap(GL_TEXTURE_2D);
+	stbi_image_free(texData);
+}
+void Water::setupLightingProperties(tinyobj::material_t material)
+{
+	// Lighting Variables //
+	// Uniform lighting variables //
+	int mtlambientHandle = glGetUniformLocation(m_shader, "mtl_ambient");
+	int mtldiffuseHandle = glGetUniformLocation(m_shader, "mtl_diffuse");
+	int mtlspecularHandle = glGetUniformLocation(m_shader, "mtl_specular");
+	int shininessHandle = glGetUniformLocation(m_shader, "shininess");
+	int emissionHandle = glGetUniformLocation(m_shader, "emission");
+	int alphaHandle = glGetUniformLocation(m_shader, "alpha");
+	if (mtlambientHandle == -1 ||
+		mtldiffuseHandle == -1 ||
+		mtlspecularHandle == -1 ||
+		shininessHandle == -1 ||
+		emissionHandle == -1 ||
+		alphaHandle == -1) {
+		cerr << "Error: can't find material uniform variables." << endl;
+		cerr << "Shader " << m_shader << endl;
+		cerr << "mtlambientHandle " << mtlambientHandle << endl;
+		cerr << "mtldiffuseHandle " << mtldiffuseHandle << endl;
+		cerr << "mtlspecularHandle " << mtlspecularHandle << endl;
+		cerr << "shininessHandle " << shininessHandle << endl;
+		cerr << "emissionHandle " << emissionHandle << endl;
+		cerr << "alphaHandle " << alphaHandle << endl;
+		exit(11);
+	}
+
+	glUniform3fv(mtlambientHandle, 1, material.ambient);
+	glUniform3fv(mtldiffuseHandle, 1, material.diffuse);
+	glUniform3fv(mtlspecularHandle, 1, material.specular);
+	glUniform3fv(emissionHandle, 1, material.emission);
+	glUniform1f(shininessHandle, material.shininess);
+	glUniform1f(alphaHandle, material.dissolve);
+	/*
+	cout << "\nLighting Properties \"" << material.name << "\"" << endl;
+	cout << "mtlambientHandle\t" << mtlambientHandle << " ";
+	cout << material.ambient[0] << "\t" << material.ambient[1] << "\t" << material.ambient[3] << endl;
+	cout << "mtldiffuseHandle\t" << mtldiffuseHandle << " ";
+	cout << material.diffuse[0] << "\t" << material.diffuse[1] << "\t" << material.diffuse[3] << endl;
+	cout << "mtlspecularHandle\t" << mtlspecularHandle << " ";
+	cout << material.specular[0] << "\t" << material.specular[1] << "\t" << material.specular[3] << endl;
+	cout << "shininessHandle\t" << shininessHandle << " " << material.shininess << endl;
+	cout << "============================================" << endl;
+	*/
+	MaterialProperties in_props;
+	for (int i = 0; i < 3; i++)
+	{
+		in_props.ambient[i] = material.ambient[i];
+		in_props.diffuse[i] = material.diffuse[i];
+		in_props.specular[i] = material.specular[i];
+		in_props.emission[i] = material.emission[i];
+	}
+	in_props.shininess = material.shininess;
+	in_props.alpha = material.dissolve;
+
+	m_materialProperties.push_back(in_props);
+}
+
+void Water::pushMaterialPropsToShader(int idx)
+{
+	if (idx > m_materialProperties.size())
+	{
+		cerr << "Index " << idx << " out of range pushMaterialPropsToShader(int idx)" << endl;
+		return;
+	}
+	// Lighting Variables //
+	// Uniform lighting variables //
+	int mtlambientHandle = glGetUniformLocation(m_shader, "mtl_ambient");
+	int mtldiffuseHandle = glGetUniformLocation(m_shader, "mtl_diffuse");
+	int mtlspecularHandle = glGetUniformLocation(m_shader, "mtl_specular");
+	int shininessHandle = glGetUniformLocation(m_shader, "shininess");
+	int emissionHandle = glGetUniformLocation(m_shader, "emission");
+	int alphaHandle = glGetUniformLocation(m_shader, "alpha");
+	if (mtlambientHandle == -1 ||
+		mtldiffuseHandle == -1 ||
+		mtlspecularHandle == -1 ||
+		shininessHandle == -1 ||
+		emissionHandle == -1 ||
+		alphaHandle == -1) {
+		cerr << "Error: can't find material uniform variables." << endl;
+		cerr << "Shader " << m_shader << endl;
+		cerr << "mtlambientHandle " << mtlambientHandle << endl;
+		cerr << "mtldiffuseHandle " << mtldiffuseHandle << endl;
+		cerr << "mtlspecularHandle " << mtlspecularHandle << endl;
+		cerr << "shininessHandle " << shininessHandle << endl;
+		cerr << "emissionHandle " << emissionHandle << endl;
+		cerr << "alphaHandle " << alphaHandle << endl;
+		exit(11);
+	}
+	glUniform3fv(mtlambientHandle, 1, m_materialProperties[idx].ambient);
+	glUniform3fv(mtldiffuseHandle, 1, m_materialProperties[idx].diffuse);
+	glUniform3fv(mtlspecularHandle, 1, m_materialProperties[idx].specular);
+	glUniform3fv(emissionHandle, 1, m_materialProperties[idx].emission);
+	glUniform1f(shininessHandle, m_materialProperties[idx].shininess);
+	glUniform1f(alphaHandle, m_materialProperties[idx].alpha);
+}
+
+void Water::createLight(float objMaxCoord)
+{
+	objMaxCoord = 1000;
+	// Uniform lighting variables //
+	int lightambientHandle = glGetUniformLocation(m_shader, "light_ambient");
+	int lightdiffuseHandle = glGetUniformLocation(m_shader, "light_diffuse");
+	int lightspecularHandle = glGetUniformLocation(m_shader, "light_specular");
+	int lightposHandle = glGetUniformLocation(m_shader, "light_pos");
+	if (lightambientHandle == -1 ||
+		lightdiffuseHandle == -1 ||
+		lightspecularHandle == -1)
+	{
+		fprintf(stderr, "Error: can't find light uniform variables\n");
+		exit(12);
+	}
+	else
+	{
+		cout << "\nLight Created " << endl;
+		cout << "Ambient handle\t" << lightambientHandle << endl;
+		cout << "Diffuse handle\t" << lightdiffuseHandle << endl;
+		cout << "Specular handle\t" << lightspecularHandle << endl;
+		cout << "Lightpos handle\t" << lightposHandle << endl;
+	}
+
+	// Light 1 overhead, blue //
+	float lightambient[3] = { 0.5f, 0.5f, 0.5f };	// ambient light components
+	float lightdiffuse[3] = { 0.7f, 0.7f, 1.0f };	// diffuse light components
+	float lightspecular[3] = { 0.7f, 0.6f, 0.7f };	// specular light components
+	float lightPos[4] = { 544.0f, 378.0f, -120.0f, 1.0f };
+
+	LightProperties in_props;
+	for (int i = 0; i < 3; i++)
+	{
+		in_props.ambient[i] = lightambient[i];
+		in_props.diffuse[i] = lightdiffuse[i];
+		in_props.specular[i] = lightspecular[i];
+	}
+	for (int i = 0; i < 4; i++)
+	{
+		in_props.lightPos[i] = lightPos[i];
+	}
+	m_lightProperties.push_back(in_props);
+
+	// Light 2 - headlight, white // 
+	float lightambient2[3] = { 0.5f, 0.5f, 0.5f };	// ambient light components
+	float lightdiffuse2[3] = { 0.9f, 0.9f, 0.9f };	// diffuse light components
+	float lightspecular2[3] = { 1.0f, 1.0f, 1.0f };	// specular light components
+	glm::vec4 lightPos2 = m_cameraManager->getCameraPos()*glm::vec4(0, 0, 0, 1);
+	lightPos2.z = -lightPos2.z;
+	//glm::vec4 lightPos2 = glm::vec4(0, 0, 20, 1);
+
+	LightProperties in_props2;
+
+	for (int i = 0; i < 3; i++)
+	{
+		in_props2.ambient[i] = lightambient2[i];
+		in_props2.diffuse[i] = lightdiffuse2[i];
+		in_props2.specular[i] = lightspecular2[i];
+	}
+	for (int i = 0; i < 4; i++)
+	{
+		in_props2.lightPos[i] = lightPos2[i];
+	}
+
+	m_lightProperties.push_back(in_props2);
+
+	// Light 3 - none // 
+	float lightambient3[3] = { 0.0f, 0.0f, 0.0f };	// ambient light components
+	float lightdiffuse3[3] = { 0.0f, 0.0f, 0.0f };	// diffuse light components
+	float lightspecular3[3] = { 0.0f, 0.0f, 0.0f };	// specular light components
+	glm::vec4 lightPos3 = m_cameraManager->getCameraPos()*glm::vec4(0, 0, 0, 1);
+	lightPos3.z = -lightPos3.z;
+	//glm::vec4 lightPos2 = glm::vec4(0, 0, 20, 1);
+
+	LightProperties in_props3;
+
+	for (int i = 0; i < 3; i++)
+	{
+		in_props3.ambient[i] = lightambient3[i];
+		in_props3.diffuse[i] = lightdiffuse3[i];
+		in_props3.specular[i] = lightspecular3[i];
+	}
+	for (int i = 0; i < 4; i++)
+	{
+		in_props3.lightPos[i] = lightPos3[i];
+	}
+
+	m_lightProperties.push_back(in_props3);
+
+	cout << "============================================" << endl;
+}
+
+void Water::pushLightingPropsToShader(int idx)
+{
+	if (idx > m_lightProperties.size())
+	{
+		cerr << "Index " << idx << " out of range pushLightingPropsToShader(int idx)" << endl;
+		return;
+	}
+	// Uniform lighting variables //
+	int lightambientHandle = glGetUniformLocation(m_shader, "light_ambient");
+	int lightdiffuseHandle = glGetUniformLocation(m_shader, "light_diffuse");
+	int lightspecularHandle = glGetUniformLocation(m_shader, "light_specular");
+	int lightposHandle = glGetUniformLocation(m_shader, "light_pos");
+	if (lightambientHandle == -1 ||
+		lightdiffuseHandle == -1 ||
+		lightspecularHandle == -1)
+	{
+		fprintf(stderr, "Error: can't find light uniform variables\n");
+		exit(12);
+	}
+
+	glUniform3fv(lightambientHandle, 1, m_lightProperties[idx].ambient);
+	glUniform3fv(lightdiffuseHandle, 1, m_lightProperties[idx].diffuse);
+	glUniform3fv(lightspecularHandle, 1, m_lightProperties[idx].specular);
+	glUniform4fv(lightposHandle, 1, m_lightProperties[idx].lightPos);
+}

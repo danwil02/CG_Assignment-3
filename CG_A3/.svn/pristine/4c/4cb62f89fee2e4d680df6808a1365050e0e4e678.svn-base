@@ -1,0 +1,31 @@
+#ifndef WIREFRAME_H
+#define WIREFRAME_H
+
+#include "Model.h"
+#include "../../Utils/tiny_obj_loader.h"
+#include "../../OpenGL_headers.h"
+#include <string>
+#include <vector>
+#include <iostream>
+
+namespace Rendering
+{
+	namespace Models
+	{
+		class WireFrame : public Rendering::Models::Model
+		{
+		public:
+			WireFrame();
+			~WireFrame();
+			void Create(std::string inputfile);
+			virtual void Update(unsigned int flags) override final;
+			virtual void Draw() override final;
+		private:
+			std::vector<unsigned int> m_indiciesLength;
+			unsigned int m_IdxLen;
+			unsigned int m_numShapes;
+			float m_scaleFactor;
+		};
+	}
+}
+#endif

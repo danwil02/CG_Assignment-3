@@ -1,0 +1,25 @@
+#pragma once
+#include "Model.h"
+
+namespace Rendering
+{
+	namespace Models
+	{
+
+		class SkyBox : public Model
+		{
+		public:
+			SkyBox();
+			~SkyBox();
+			void Create();
+			virtual void Update(unsigned int flags) override final;
+			virtual void Draw() override final;
+		private:
+
+			// Matrices //
+			glm::mat4 m_cameraMat;
+			glm::mat4 m_projMat;
+			glm::mat4 m_mvMat;
+		};
+	}
+}

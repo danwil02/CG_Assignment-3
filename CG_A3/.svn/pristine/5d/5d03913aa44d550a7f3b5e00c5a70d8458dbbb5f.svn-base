@@ -1,0 +1,96 @@
+#include "ModelsManager.h"
+
+using namespace Managers;
+using namespace Rendering;
+
+ModelsManager::ModelsManager(ShaderManager* shaderManager, CameraManager* cameraManager,
+	CMD_OPTIONS options, std::string objDir)
+{
+	m_cameraManager = cameraManager;
+
+	Models::Triangle* triangle = new Models::Triangle();
+	Models::TextureObj* textured = new Models::TextureObj();
+	Models::TextureObj* textured2 = new Models::TextureObj();
+
+	Models::WireFrame* wireFrame = new Models::WireFrame();
+	Models::GenericObj* genericLighting = new Models::GenericObj();
+
+	Models::SkyBox* skybox = new Models::SkyBox();
+	skybox->setCameraManager(m_cameraManager);
+	skybox->SetShader(shaderManager->getShaderHandle("skybox"));
+	skybox->Create();
+	m_gameModelList["skybox"] = skybox;
+
+	switch (options)
+	{
+	case WIREFRAME:
+		wireFrame->setCameraManager(m_cameraManager);
+		wireFrame->SetShader(shaderManager->getShaderHandle("wireframe"));
+		wireFrame->Create(objDir);
+		m_gameModelList["wireframe"] = wireFrame;
+		break;
+	case TEXTURED:
+		textured->setCameraManager(m_cameraManager);
+		textured->SetShader(shaderManager->getShaderHandle("shaded"));
+		textured->Create(objDir,0.0);
+		m_gameModelList["textured"] = textured;
+		/*
+		textured2->setCameraManager(m_cameraManager);
+		textured2->SetShader(shaderManager->getShaderHandle("shaded"));
+		textured2->Create(objDir,-10.0);
+		m_gameModelList["textured2"] = textured2;*/
+		break;
+	case GENERIC_WITH_LIGHTING:
+		genericLighting->setCameraManager(m_cameraManager);
+		genericLighting->SetShader(shaderManager->getShaderHandle("generic_lighting"));
+		genericLighting->Create(objDir);
+		m_gameModelList["generic_lighting"] = genericLighting;
+		break;
+	default: 
+		triangle->SetShader(shaderManager->getShaderHandle("minimal"));
+		triangle->Create();
+		m_gameModelList["triangle"] = triangle;
+		break;
+	}
+}
+
+ModelsManager::~ModelsManager()
+{
+	//auto is a map iterator
+	for (auto model : m_gameModelList)
+	{
+		delete model.second;
+	}
+	m_gameModelList.clear();
+}
+
+void ModelsManager::DeleteModel(const std::string& gameModelName)
+{
+	IGameObject* model = m_gameModelList[gameModelName];
+	model->Destroy();
+	m_gameModelList.erase(gameModelName);
+}
+
+const IGameObject& ModelsManager::GetModel(const std::string& gameModelName) const
+{
+	return (*m_gameModelList.at(gameModelName));
+}
+
+void ModelsManager::Update(unsigned int flags)
+{
+	//auto is a map iterator
+	for (auto model : m_gameModelList)
+	{
+		model.second->Update(flags);
+	}
+}
+
+void ModelsManager::Draw()
+{
+	//auto is a map iterator
+	for (auto model : m_gameModelList)
+	{
+		model.second->Draw();
+	}
+}
+

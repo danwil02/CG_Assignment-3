@@ -1,0 +1,903 @@
+#include "Island.h"
+#include "../../Monitor_GL.h"
+
+using namespace Rendering;
+using namespace Models;
+using namespace std;
+
+Island::Island()
+{
+}
+
+
+Island::~Island()
+{
+}
+
+void Island::Create(std::string inputfile)
+{
+	//string inputfile = "./Rendering/Models/TestObjs/car/car-n.obj";
+	//string inputfile = "./Rendering/Models/TestObjs/Lambo/Avent.obj";
+	//string inputfile = "./Rendering/Models/TestObjs/cube-tex/cube-tex.obj";
+	//inputfile = "Rendering/Models/TestObjs/scifi tropical city/Sci-fi Tropical city.obj";
+	//inputfile = "Rendering/Models/TestObjs/l00_intro/l00_intro.obj";
+	//inputfile = "Rendering/Models/TestObjs/street_scene/Street environment_V01.obj";
+	//inputfile = "Rendering\\Models\\TestObjs\\Lambo\\Avent.obj";
+
+	vector<tinyobj::shape_t> shapes;
+	vector<tinyobj::material_t> materials;
+	vector<glm::vec4> colours;
+	string basepath;
+	string shapeCheck;
+	bool textureMappedSuccess = false;
+	int material_id = 0;
+
+	GLuint vao;
+	GLuint vbo[4];
+	GLuint texId;
+		
+	if (WINDOWS)
+	{
+		basepath = inputfile.substr(0, inputfile.rfind('\\') + 1); // WINDOWS
+	}
+	else
+	{
+		basepath = inputfile.substr(0, inputfile.rfind('/') + 1);;
+	}
+
+	cout << "Loading " << inputfile << " . . . ";
+	if (basepath.size() <= 1)
+	{
+		cerr << "Incorrect base path for tinyobj::LoadObj " << basepath << endl;
+	}
+	std::string err = tinyobj::LoadObj(shapes, materials, inputfile.c_str(), basepath.c_str());
+	cout << "DONE!\n";
+
+	cout << "Shapes "<< shapes.size() << endl;
+	cout <<  "Materials " << materials.size() << endl;
+
+//	for(int i = 0; i < shapes[i].mesh.positions.size())
+//	{
+	//colours.push_back(glm::vec4(1, 1, 1, 1));
+
+	if (!err.empty())
+	{
+		cout << err << endl;
+		exit(10);
+	}
+	m_numShapes = shapes.size();
+	//unsigned int num_textures = m_numShapes;
+	//m_texId = std::vector<GLuint>(num_textures);
+
+	for (unsigned int i = 0; i < m_numShapes; i++)
+	{
+		m_indiciesLength.push_back(shapes[i].mesh.positions.size());
+
+		glGenVertexArrays(1, &vao);
+		glBindVertexArray(vao);
+		glGenBuffers(4, vbo);
+
+		// Vertices // 
+		glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
+		glBufferData(GL_ARRAY_BUFFER, shapes[i].mesh.positions.size()*sizeof(float),
+			&shapes[i].mesh.positions[0], GL_STATIC_DRAW);
+		int vertLoc = glGetAttribLocation(m_shader, "a_vertex");
+		glEnableVertexAttribArray(vertLoc);
+		glVertexAttribPointer(vertLoc, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+		// Calculate Average position for transparancy sorting later //
+		float nextCoord = 0;
+		int xyz = 0;
+		float maxX = 0, maxY = 0, maxZ = 0, minX = 0, minY = 0, minZ = 0;
+		for (size_t v = 0; v < shapes[i].mesh.positions.size(); v++)
+		{
+			xyz = (v) % 3; // 0 = x, 1 = y, 2 = z
+			nextCoord = shapes[i].mesh.positions[v];
+			switch (xyz)
+			{
+			case 0:
+				if (nextCoord > maxX)
+				{
+					maxX = nextCoord;
+				}
+				else if (nextCoord < minX)
+				{
+					minX = nextCoord;
+				}
+				if (v < 3 && maxX == 0)
+				{
+					maxX = nextCoord;
+				}
+				if (v < 3 && minX == 0)
+				{
+					minX = nextCoord;
+				}
+				break;
+			case 1:
+				if (nextCoord > maxY)
+				{
+					maxY = nextCoord;
+				}
+				else if (nextCoord < minY)
+				{
+					minY = nextCoord;
+				}
+				if (v < 3 && maxY == 0)
+				{
+					maxY = nextCoord;
+				}
+				if (v < 3 && minY == 0)
+				{
+					minY = nextCoord;
+				}
+				break;
+			case 2:
+				if (nextCoord > maxZ)
+				{
+					maxZ = nextCoord;
+				}
+				else if (nextCoord < minZ)
+				{
+					minZ = nextCoord;
+				}
+				if (v < 3 && maxZ == 0)
+				{
+					maxZ = nextCoord;
+				}
+				if (v < 3 && minZ == 0)
+				{
+					minZ = nextCoord;
+				}
+				break;
+			}
+		}
+
+		glm::vec3 pos = glm::vec3((maxX - minX) / 2, (maxY - minY) / 2, (maxZ - minZ) / 2);
+		m_shapePos.push_back(pos);
+		m_distToShape.push_back(0);
+
+		if (i < materials.size())
+		{
+			if (materials[i].dissolve != 1)
+			{
+				m_needToSort = true;
+			}
+		}
+
+		// Indices //
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vbo[1]);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, shapes[i].mesh.indices.size()*sizeof(int),
+			&shapes[i].mesh.indices[0], GL_STATIC_DRAW);
+
+		// Flip the texture coords to make opengl happy //
+		for(int j=1;j<shapes[i].mesh.texcoords.size();j+=2)
+		{
+			shapes[i].mesh.texcoords[j] = 1-shapes[i].mesh.texcoords[j];
+		}
+
+		if (shapes[i].mesh.texcoords.size() > 0)
+		{
+			// Texture Coordinates //
+			glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
+			glBufferData(GL_ARRAY_BUFFER, shapes[i].mesh.texcoords.size()*sizeof(float),
+				&shapes[i].mesh.texcoords[0], GL_STATIC_DRAW);
+			int texLoc = glGetAttribLocation(m_shader, "a_tex_coord");
+			glEnableVertexAttribArray(texLoc);
+			glVertexAttribPointer(texLoc, 2, GL_FLOAT, GL_FALSE, 0, 0);
+
+			material_id = shapes[i].mesh.material_ids[0]; // Assume each poly has same material
+
+			if (material_id < materials.size())
+			{
+				// Load correct texture for shape from file //
+				setupTexture(texId, materials[material_id], basepath);
+			}
+			else
+			{
+				cerr << "material_id out of range " << material_id << endl;
+			}
+		}
+		else
+		{
+			texId = -1; // No texture to render
+		}
+		
+		material_id = shapes[i].mesh.material_ids[0]; // Assume each poly has same material
+
+		if (material_id < materials.size())
+		{
+			// Lead lighting properties for material //
+			setupLightingProperties(materials[material_id]);
+		}
+		else if (material_id == -1)
+		{
+			setupLightingProperties(materials[0]);
+		}
+		else
+		{
+			cerr << "material_id out of range " << material_id << endl;
+		}
+
+
+/* Tex coords debug
+		for(int j=0;j<shapes[i].mesh.texcoords.size();j++)
+		{
+			cout << shapes[i].mesh.texcoords[j] << " ";
+		}cout << endl;
+		cout << "========================================\n";
+*/
+		// Normals //
+		glBindBuffer(GL_ARRAY_BUFFER, vbo[3]);
+		glBufferData(GL_ARRAY_BUFFER, shapes[i].mesh.normals.size()*sizeof(float),
+			&shapes[i].mesh.normals[0], GL_STATIC_DRAW);
+		int normLoc = glGetAttribLocation(m_shader, "a_normal");
+		glEnableVertexAttribArray(normLoc);
+		glVertexAttribPointer(normLoc, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+		// Unbind VAO and buffers //
+		glBindVertexArray(0);
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		m_vao.push_back(vao);
+		m_vbos.push_back(vbo[0]);
+		m_vbos.push_back(vbo[1]);
+		m_vbos.push_back(vbo[2]);
+		m_vbos.push_back(vbo[3]);
+		m_texId.push_back(texId);
+		m_indiciesLength[i] = shapes[i].mesh.indices.size();
+	}
+
+	/*cout << "m_texId ";
+	for(int i=0;i<m_texId.size();i++)
+	{
+		if (m_texId[i] != -1)
+		{
+			cout << m_texId[i] << " ";
+		}
+	}cout << endl;
+	cout << "Number of shapes = " << shapes.size() << endl;
+	cout << "+++++++++++++++++++++++++++++++\n";
+	*/
+	//
+	// Default View is 5 units away from object with 70deg fov. This gives approx y range of +10.6
+	// So here we will scale each object with respect to coord with largest magnitude up to 10 
+	//
+	
+	float maxCoord = 0;
+	float nextCoord = 0;
+	float maxYcoord = 0;
+	int xyz = 1; // 0 for x, 1 for y, 2 for z 
+	for (unsigned int i = 0; i < m_numShapes; i++)
+	{
+		for (size_t v = 0; v < shapes[i].mesh.positions.size(); v++)
+		{
+			xyz = (v) % 3;
+			nextCoord = abs(shapes[i].mesh.positions[v]);
+			if (nextCoord > maxCoord)
+			{
+				maxCoord = nextCoord;
+			}
+			if (xyz == 1 && nextCoord > maxYcoord)
+			{
+				maxYcoord = nextCoord;
+			}
+		}
+	}
+
+	m_scaleFactor = 1;
+
+	//cout << "Scale factor = " << m_scaleFactor << endl;
+	//cout << "Max Coord = " << maxCoord << endl;
+
+	createLight(maxYcoord*m_scaleFactor);
+}
+
+
+
+void Island::Update(unsigned int flags)
+{
+	if (flags == UPDATE_LIGHTING_OVERHEAD ||
+		flags == UPDATE_LIGHTING_HEADLIGHT ||
+		flags == UPDATE_LIGHTING_NONE)
+	{
+		m_lightingState = flags;
+	}
+}
+
+void Island::Draw()
+{
+	m_glUseProgram(m_shader);
+	glDisable(GL_CULL_FACE);
+
+	// Grab the latest version of the camera matrix //
+	m_cameraMat = m_cameraManager->getCameraPos();
+
+	//cameraMat = glm::translate(cameraMat, glm::vec3(m_x_offset, 0, 0));
+	GLuint cameraMatHandle = glGetUniformLocation(m_shader, "camera_matrix");
+	if (cameraMatHandle == -1)
+	{
+		exit(13);
+	}
+	glUniformMatrix4fv(cameraMatHandle, 1, false, glm::value_ptr(m_cameraMat));
+
+	// Grab the latest version of the projection matrix //
+	glm::mat4 projMat = m_cameraManager->getProjectionMat();
+	GLuint projMatHandle = glGetUniformLocation(m_shader, "projection_matrix");
+	if (projMatHandle == -1)
+	{
+		exit(14);
+	}
+	glUniformMatrix4fv(projMatHandle, 1, false, glm::value_ptr(projMat));
+
+	// Update the modle view matrix //
+	m_modleViewMat = m_scaleMat * m_posMat;
+	GLuint modleview = glGetUniformLocation(m_shader, "modleview_matrix");
+	if (modleview == -1)
+	{
+		exit(15);
+	}
+	glUniformMatrix4fv(modleview, 1, false, glm::value_ptr(m_modleViewMat));
+
+	// Normal Matrix //
+	glm::mat3 normalMat(1);
+	normalMat = glm::mat3(m_cameraMat*m_scaleMat);
+	int normHandle = glGetUniformLocation(m_shader, "normal_matrix");
+	if (normHandle == -1)
+	{
+		exit(16);
+	}
+	glUniformMatrix3fv(normHandle, 1, false, glm::value_ptr(normalMat));
+	int texHandle = glGetUniformLocation(m_shader, "texMap");
+	if (texHandle == -1)
+	{
+		cout << "Could not find texMap handle " << texHandle << endl;
+		exit(17);
+	}
+
+	pushLightingPropsToShader(m_lightingState);
+
+	int applyTexHandle = glGetUniformLocation(m_shader, "apply_tex");
+
+	for (int i = 0; i < m_vao.size(); i++)
+	{
+		if (m_texId[i] != -1)
+		{
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, m_texId[i]);
+			glUniform1i(texHandle, 0);
+			glUniform1i(applyTexHandle, 1); // Flag to not apply texture
+		}
+		else
+		{
+			glUniform1i(applyTexHandle, 0); // Flag to apply texture
+		}
+
+		pushMaterialPropsToShader(i);
+
+		m_glBindVertexArray(m_vao[i]);
+		m_glDrawElements(GL_TRIANGLES,
+			m_indiciesLength[i],
+			GL_UNSIGNED_INT,
+			(void*)0);
+
+		glBindTexture(GL_TEXTURE_2D, 0); // Unbind texture
+	}
+	m_glBindVertexArray(0);
+}
+
+// Texture Helper Functions //
+void Island::setTexUnit(unsigned int unit)
+{
+	glActiveTexture(GL_TEXTURE0);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_NEAREST);
+	// Maximum texture unit number = GL_TEXTURE31
+}
+
+// Textures //
+void Island::setupTexture(GLuint& texId, tinyobj::material_t material, string basePath)
+{
+	string texPath;
+	int x, y, n;
+	unsigned char* texData;
+
+	if (material.ambient_texname != "")
+	{
+		texPath = basePath + material.ambient_texname;
+	}
+	else if (material.diffuse_texname != "")
+	{
+		texPath = basePath + material.diffuse_texname;
+	}
+	else if (material.specular_texname != "")
+	{
+		texPath = basePath + material.specular_texname;
+	}
+	else
+	{
+		//cerr << "Could not read in texture " << basePath << " " << material.name << endl;
+		texId = -1;
+		return;
+	}
+
+	// Set up texture unit 0 //
+	glGenTextures(1, &texId);
+	glBindTexture(GL_TEXTURE_2D, texId);
+	setTexUnit(0);
+	/*
+	if (manualTexDir != "")
+	{
+		img_dir = manualTexDir;
+	}
+	else
+	{
+		tex_name = shape.name;
+		tex_name = tex_name.substr(shape.name.find('_')+1, shape.name.find('\0')); //tex_name.substr(0, shape.name.find('.'));
+		if(tex_name.back() == '.' || tex_name.rfind('.') != string::npos)
+		{
+			tex_name.erase(tex_name.rfind('.'));
+			tex_name += ".jpg";
+		}
+		else
+		{
+			tex_name += ".jpg";
+		}
+		//dir_name = inputfile.substr(0, inputfile.find_last_of('/') + 1); // OSX
+		dir_name = inputfile.substr(0, inputfile.find_last_of('\\') + 1); // WINDOWS
+		img_dir = dir_name + tex_name;
+	}*/
+	
+	int pos = 0;
+	while (texPath.find('\\') != string::npos)
+	{
+		pos = texPath.find('\\');
+		texPath.erase(pos, 1);
+		texPath.insert(pos,"/");
+	}
+
+	while (texPath.find("//") != string::npos)
+	{
+		pos = texPath.find("//");
+		texPath.erase(pos, 1);
+	}
+
+	//cout << "Load Texture " << texId << " " << texPath;
+	//cout << " for shape \n" << material.name;
+	texData = stbi_load(texPath.c_str(), &x, &y, &n, 0);
+	//cout << " Texture is " << x << " X " << y << " pixels. Chars per pixel: " << n << endl;
+	//for (int i = 0; i < (x*y*n); i++)
+	//{
+		//cout << texData[i];
+		//texData[i] = 100;
+	//}
+	//cout << endl << "------------------------ END DATA -----------------------" <<endl;
+
+	if (x <= 0 || y <= 0 || n < 0)
+	{
+		cout << "ERROR: stbi_load failed" << endl;
+	}
+
+	if (n == 3) {
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, x, y, 0, GL_RGB, GL_UNSIGNED_BYTE, texData);
+	}
+	else if (n == 4)
+	{
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, x, y, 0, GL_RGBA, GL_UNSIGNED_BYTE, texData);
+	}
+	else {
+		fprintf(stderr, "Image pixels are not RGB. You will need to change the glTexImage2D command.");
+	}
+
+	glGenerateMipmap(GL_TEXTURE_2D);
+	stbi_image_free(texData);
+}
+
+void Island::setupLightingProperties(tinyobj::material_t material)
+{
+	// Lighting Variables //
+	// Uniform lighting variables //
+	int mtlambientHandle = glGetUniformLocation(m_shader, "mtl_ambient");
+	int mtldiffuseHandle = glGetUniformLocation(m_shader, "mtl_diffuse");
+	int mtlspecularHandle = glGetUniformLocation(m_shader, "mtl_specular");
+	int shininessHandle = glGetUniformLocation(m_shader, "shininess");
+	int emissionHandle = glGetUniformLocation(m_shader, "emission");
+	int alphaHandle = glGetUniformLocation(m_shader, "alpha");
+	if (mtlambientHandle == -1 ||
+		mtldiffuseHandle == -1 ||
+		mtlspecularHandle == -1 ||
+		shininessHandle == -1 ||
+		emissionHandle == -1 ||
+		alphaHandle == -1) {
+		cerr << "Error: can't find material uniform variables." << endl;
+		cerr << "Shader " << m_shader << endl;
+		cerr << "mtlambientHandle " << mtlambientHandle << endl;
+		cerr << "mtldiffuseHandle " << mtldiffuseHandle << endl;
+		cerr << "mtlspecularHandle " << mtlspecularHandle << endl;
+		cerr << "shininessHandle " << shininessHandle << endl;
+		cerr << "emissionHandle " << emissionHandle << endl;
+		cerr << "alphaHandle " << alphaHandle << endl;
+		exit(11);
+	}
+
+	glUniform3fv(mtlambientHandle, 1, material.ambient);
+	glUniform3fv(mtldiffuseHandle, 1, material.diffuse);
+	glUniform3fv(mtlspecularHandle, 1, material.specular);
+	glUniform3fv(emissionHandle, 1, material.emission);
+	glUniform1f(shininessHandle, material.shininess);
+	glUniform1f(alphaHandle, material.dissolve);
+	/*
+	cout << "\nLighting Properties \"" << material.name << "\"" << endl;
+	cout << "mtlambientHandle\t" << mtlambientHandle << " ";
+	cout << material.ambient[0] << "\t" << material.ambient[1] << "\t" << material.ambient[3] << endl;
+	cout << "mtldiffuseHandle\t" << mtldiffuseHandle << " ";
+	cout << material.diffuse[0] << "\t" << material.diffuse[1] << "\t" << material.diffuse[3] << endl;
+	cout << "mtlspecularHandle\t" << mtlspecularHandle << " ";
+	cout << material.specular[0] << "\t" << material.specular[1] << "\t" << material.specular[3] << endl;
+	cout << "shininessHandle\t" << shininessHandle << " " << material.shininess << endl;
+	cout << "============================================" << endl;
+	*/
+	MaterialProperties in_props;
+	for (int i = 0; i < 3; i++)
+	{
+		in_props.ambient[i] = material.ambient[i];
+		in_props.diffuse[i] = material.diffuse[i];
+		in_props.specular[i] = material.specular[i];
+		in_props.emission[i] = material.emission[i];
+	}
+	in_props.shininess = material.shininess;
+	in_props.alpha = material.dissolve;
+
+	m_materialProperties.push_back(in_props);
+}
+
+void Island::pushMaterialPropsToShader(int idx)
+{
+	if (idx > m_materialProperties.size())
+	{
+		cerr << "Index " << idx << " out of range pushMaterialPropsToShader(int idx)" << endl;
+		return;
+	}
+	// Lighting Variables //
+	// Uniform lighting variables //
+	int mtlambientHandle = glGetUniformLocation(m_shader, "mtl_ambient");
+	int mtldiffuseHandle = glGetUniformLocation(m_shader, "mtl_diffuse");
+	int mtlspecularHandle = glGetUniformLocation(m_shader, "mtl_specular");
+	int shininessHandle = glGetUniformLocation(m_shader, "shininess");
+	int emissionHandle = glGetUniformLocation(m_shader, "emission");
+	int alphaHandle = glGetUniformLocation(m_shader, "alpha");
+	if (mtlambientHandle == -1 ||
+		mtldiffuseHandle == -1 ||
+		mtlspecularHandle == -1 ||
+		shininessHandle == -1 ||
+		emissionHandle == -1 ||
+		alphaHandle == -1) {
+		cerr << "Error: can't find material uniform variables." << endl;
+		cerr << "Shader " << m_shader << endl;
+		cerr << "mtlambientHandle " << mtlambientHandle << endl;
+		cerr << "mtldiffuseHandle " << mtldiffuseHandle << endl;
+		cerr << "mtlspecularHandle " << mtlspecularHandle << endl;
+		cerr << "shininessHandle " << shininessHandle << endl;
+		cerr << "emissionHandle " << emissionHandle << endl;
+		cerr << "alphaHandle " << alphaHandle << endl;
+		exit(11);
+	}
+	glUniform3fv(mtlambientHandle, 1, m_materialProperties[idx].ambient);
+	glUniform3fv(mtldiffuseHandle, 1, m_materialProperties[idx].diffuse);
+	glUniform3fv(mtlspecularHandle, 1, m_materialProperties[idx].specular);
+	glUniform3fv(emissionHandle, 1, m_materialProperties[idx].emission);
+	glUniform1f(shininessHandle, m_materialProperties[idx].shininess);
+	glUniform1f(alphaHandle, m_materialProperties[idx].alpha);
+}
+
+void Island::createLight(float objMaxCoord)
+{
+	objMaxCoord = 1000;
+	// Uniform lighting variables //
+	int lightambientHandle = glGetUniformLocation(m_shader, "light_ambient");
+	int lightdiffuseHandle = glGetUniformLocation(m_shader, "light_diffuse");
+	int lightspecularHandle = glGetUniformLocation(m_shader, "light_specular");
+	int lightposHandle = glGetUniformLocation(m_shader, "light_pos");
+	if (lightambientHandle == -1 ||
+		lightdiffuseHandle == -1 ||
+		lightspecularHandle == -1)
+	{
+		fprintf(stderr, "Error: can't find light uniform variables\n");
+		exit(12);
+	}
+	else
+	{
+		cout << "\nLight Created " << endl;
+		cout << "Ambient handle\t" << lightambientHandle << endl;
+		cout << "Diffuse handle\t" << lightdiffuseHandle << endl;
+		cout << "Specular handle\t" << lightspecularHandle << endl;
+		cout << "Lightpos handle\t" << lightposHandle << endl;
+	}
+
+	// Light 1 overhead, blue //
+	float lightambient[3] = { 0.5f, 0.5f, 0.5f };	// ambient light components
+	float lightdiffuse[3] = { 0.7f, 0.7f, 1.0f };	// diffuse light components
+	float lightspecular[3] = { 0.7f, 0.6f, 0.7f };	// specular light components
+	float lightPos[4] = { 544.0f, 378.0f, -120.0f, 1.0f };
+
+	LightProperties in_props;
+	for (int i = 0; i < 3; i++)
+	{
+		in_props.ambient[i] = lightambient[i];
+		in_props.diffuse[i] = lightdiffuse[i];
+		in_props.specular[i] = lightspecular[i];
+	}
+	for (int i = 0; i < 4; i++)
+	{
+		in_props.lightPos[i] = lightPos[i];
+	}
+	m_lightProperties.push_back(in_props);
+
+	// Light 2 - headlight, white // 
+	float lightambient2[3] = { 0.5f, 0.5f, 0.5f };	// ambient light components
+	float lightdiffuse2[3] = { 0.9f, 0.9f, 0.9f };	// diffuse light components
+	float lightspecular2[3] = { 1.0f, 1.0f, 1.0f };	// specular light components
+	glm::vec4 lightPos2 = m_cameraManager->getCameraPos()*glm::vec4(0, 0, 0, 1);
+	lightPos2.z = -lightPos2.z;
+	//glm::vec4 lightPos2 = glm::vec4(0, 0, 20, 1);
+	
+	LightProperties in_props2;
+
+	for (int i = 0; i < 3; i++)
+	{
+		in_props2.ambient[i] = lightambient2[i];
+		in_props2.diffuse[i] = lightdiffuse2[i];
+		in_props2.specular[i] = lightspecular2[i];
+	}
+	for (int i = 0; i < 4; i++)
+	{
+		in_props2.lightPos[i] = lightPos2[i];
+	}
+
+	m_lightProperties.push_back(in_props2);
+
+	// Light 3 - none // 
+	float lightambient3[3] = { 0.0f, 0.0f, 0.0f };	// ambient light components
+	float lightdiffuse3[3] = { 0.0f, 0.0f, 0.0f };	// diffuse light components
+	float lightspecular3[3] = { 0.0f, 0.0f, 0.0f };	// specular light components
+	glm::vec4 lightPos3 = m_cameraManager->getCameraPos()*glm::vec4(0, 0, 0, 1);
+	lightPos3.z = -lightPos3.z;
+	//glm::vec4 lightPos2 = glm::vec4(0, 0, 20, 1);
+
+	LightProperties in_props3;
+
+	for (int i = 0; i < 3; i++)
+	{
+		in_props3.ambient[i] = lightambient3[i];
+		in_props3.diffuse[i] = lightdiffuse3[i];
+		in_props3.specular[i] = lightspecular3[i];
+	}
+	for (int i = 0; i < 4; i++)
+	{
+		in_props3.lightPos[i] = lightPos3[i];
+	}
+
+	m_lightProperties.push_back(in_props3);
+
+	cout << "============================================" << endl;
+}
+
+void Island::pushLightingPropsToShader(int idx)
+{
+	if (idx > m_lightProperties.size())
+	{
+		cerr << "Index " << idx << " out of range pushLightingPropsToShader(int idx)" << endl;
+		return;
+	}
+	// Uniform lighting variables //
+	int lightambientHandle = glGetUniformLocation(m_shader, "light_ambient");
+	int lightdiffuseHandle = glGetUniformLocation(m_shader, "light_diffuse");
+	int lightspecularHandle = glGetUniformLocation(m_shader, "light_specular");
+	int lightposHandle = glGetUniformLocation(m_shader, "light_pos");
+	if (lightambientHandle == -1 ||
+		lightdiffuseHandle == -1 ||
+		lightspecularHandle == -1)
+	{
+		fprintf(stderr, "Error: can't find light uniform variables\n");
+		exit(12);
+	}
+
+	glUniform3fv(lightambientHandle, 1, m_lightProperties[idx].ambient);
+	glUniform3fv(lightdiffuseHandle, 1, m_lightProperties[idx].diffuse);
+	glUniform3fv(lightspecularHandle, 1, m_lightProperties[idx].specular);
+	glUniform4fv(lightposHandle, 1, m_lightProperties[idx].lightPos);
+}
+
+void Island::sortShapes()
+{
+	// Update shape positions //
+	for (int i = 0; i < m_shapePos.size(); i++)
+	{
+		glm::vec4 v = glm::vec4(m_shapePos[i], 1) * m_modleViewMat;
+		m_shapePos[i] = glm::vec3(v);
+	}
+
+	// Update distances from camera to shapes//
+	glm::vec4 cam = glm::vec4(1)*m_cameraMat;
+
+	for (int i = 0; i < m_shapePos.size(); i++)
+	{
+		m_distToShape[i] = sqrt(pow(cam.x - m_shapePos[i].x, 2) +
+			pow(cam.y - m_shapePos[i].y, 2) +
+			pow(cam.z - m_shapePos[i].z, 2));
+
+		// Make sure transparent objects are rendered last
+		if (m_materialProperties[i].alpha != 1)
+		{
+			m_distToShape[i] = -m_distToShape[i];
+		}
+	}
+	/*cout << "******************************************" << endl;
+	cout << "Before" << endl;
+	for (int i = 0; i < m_shapePos.size(); i++)
+	{
+		cout << "Dist " << m_distToShape[i] << " vao " << m_vao[i] <<
+			" indices len " << m_indiciesLength[i] << " texId " << m_texId[i] <<
+			" alpha " << m_materialProperties[i].alpha << endl;
+	}*/
+	quickSort(0, m_numShapes-1);
+	/*cout << "After" << endl;
+	for (int i = 0; i < m_shapePos.size(); i++)
+	{
+		cout << "Dist " << m_distToShape[i] << " vao " << m_vao[i] <<
+			" indices len " << m_indiciesLength[i] << " texId " << m_texId[i] << 
+			" alpha " << m_materialProperties[i].alpha << endl;
+	}cout << endl;*/
+}
+
+void Island::quickSort(int left, int right) {
+	int i = left, j = right;
+	float pivot;
+
+	// Temp vars
+	GLuint vaoTmp;
+	MaterialProperties matTmp;
+	float distTmp;
+	glm::vec3 sPosTmp;
+	unsigned int indLenTmp;
+	GLuint texTmp;
+	
+	if ((left + right) / 2 < m_distToShape.size())
+	{
+		pivot = m_distToShape[(left + right) / 2];
+	}
+	else
+	{
+		cerr << "ERROR idx out of range quicksort(). idx = " << (left + right) / 2 << endl;
+	}
+	/* partition */
+	while (i <= j) {
+		while (m_distToShape[i] < pivot)
+			i++;
+		while (m_distToShape[j] > pivot)
+			j--;
+		// Swap i, j
+		if (i <= j) {
+			// Swap m_vao
+			vaoTmp = m_vao[i];
+			m_vao[i] = m_vao[j];
+			m_vao[j] = vaoTmp;
+
+			// m_materialProperties
+			matTmp = m_materialProperties[i];
+			m_materialProperties[i] = m_materialProperties[j];
+			m_materialProperties[j] = matTmp;
+
+			// m_distToShape
+			distTmp = m_distToShape[i];
+			m_distToShape[i] = m_distToShape[j];
+			m_distToShape[j] = distTmp;
+
+			// m_shapePos
+			sPosTmp = m_shapePos[i];
+			m_shapePos[i] = m_shapePos[j];
+			m_shapePos[j] = sPosTmp;
+
+			// m_indiciesLength
+			indLenTmp = m_indiciesLength[i];
+			m_indiciesLength[i] = m_indiciesLength[j];
+			m_indiciesLength[j] = indLenTmp;
+
+			// m_texId
+			texTmp = m_texId[i];
+			m_texId[i] = m_texId[j];
+			m_texId[j] = texTmp;
+
+			/*
+			tmp = dataIn[i];
+			dataIn[i] = dataIn[j];
+			dataIn[j] = tmp;
+			*/
+
+			i++;
+			j--;
+		}
+	};
+
+	/* recursion */
+	if (left < j)
+		quickSort(left, j);
+	if (i < right)
+		quickSort(i, right);
+}
+/*
+#version 150
+
+in vec2 st;
+in vec3 normal;
+in vec4 vertex;
+
+uniform sampler2D texMap;
+
+out vec4 out_colour;
+
+uniform vec3 light_ambient;     // Light ambient RGBA values
+uniform vec3 light_diffuse;     // Light diffuse RGBA values
+uniform vec3 light_specular;    // Light specular RGBA values
+
+uniform vec3 mtl_ambient;  // Ambient surface colour
+uniform vec3 mtl_diffuse;  // Diffuse surface colour
+uniform vec3 mtl_specular; // Specular surface colour
+
+const float shininess = 32;
+
+// This is the same function that appeared in the vertex shader for
+// per-vertex lighting. Now it is being calculated for each fragment
+// individually.
+vec3 phongPointLight(in vec4 position, in vec3 norm)
+{
+vec3 s = normalize(vec3(light_pos - position));
+vec3 v = normalize(-position.xyz);
+vec3 r = reflect( -s, norm );
+
+vec3 ambient = light_ambient * mtl_ambient;
+
+// The diffuse component
+float sDotN = max( dot(s,norm), 0.0 );
+vec3 diffuse = light_diffuse * mtl_diffuse * sDotN;
+
+// The specular component
+vec3 spec = vec3(0.0);
+if ( sDotN > 0.0 )
+spec = light_specular * mtl_specular *
+pow( max( dot(r,v), 0.0 ), shininess );
+
+return ambient + diffuse + spec;
+}
+
+void main(void)
+{
+fragColour = vec4(phongPointLight(vertex, normalize(normal)), 1.0) * texture(texMap, st);
+}
+
+
+
+#version 150
+
+in vec3 a_vertex;
+in vec2 a_tex_coord;
+in vec3 a_normal;
+
+uniform mat4 camera_matrix;
+uniform mat4 projection_matrix;
+uniform mat4 scale_matrix;
+uniform mat3 normal_matrix;
+
+out vec2 st;
+out vec3 normal;
+out vec4 vertex;
+
+void main()
+{
+st = a_tex_coord;
+normal = normalize(normal_matrix * a_normal);
+vertex = camera_matrix * (scale_matrix * vec4(a_vertex, 1));
+
+gl_Position = projection_matrix * vertex;
+}
+*/

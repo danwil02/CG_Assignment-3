@@ -1,0 +1,57 @@
+#pragma once
+
+#include "Model.h"
+#include "../../Utils/tiny_obj_loader.h"
+#include "../../Utils/stb_image.h"
+#include "../../OpenGL_headers.h"
+#include <string>
+#include <vector>
+#include <iostream>
+#include <fstream>
+
+namespace Rendering
+{
+	namespace Models
+	{
+
+		class TextureObj : public Rendering::Models::Model
+		{
+		public:
+			TextureObj();
+			~TextureObj();
+			void Create(std::string inputfile, float x_offset);
+			virtual void Update(unsigned int flags) override final;
+			virtual void Draw() override final;
+		private:
+			// Texturing //
+			std::vector<GLuint> m_texId;
+			void setTexUnit(unsigned int unit);
+			void setupTexture(GLuint& texId, tinyobj::material_t material, std::string basePath);
+
+			// Lighting //
+			void setupLightingProperties(tinyobj::material_t material);
+			void createLight(float objMaxCoord);
+			void pushLightingPropsToShader(int idx);
+			void pushMaterialPropsToShader(int idx);
+			
+			std::vector<MaterialProperties> m_materialProperties;
+			std::vector<LightProperties> m_lightProperties;
+
+			int m_lightingState;
+
+			// Vertices //
+			std::vector<unsigned int> m_indiciesLength;
+			unsigned int m_IdxLen;
+			unsigned int m_numShapes;
+
+			float m_scaleFactor;
+			float m_x_offset;
+
+			// Matrices //
+			glm::mat4 m_cameraMat;
+			glm::mat4 m_projMat;
+			glm::mat4 m_mvMat;
+			glm::mat3 m_normalMat;
+		};
+	}
+}

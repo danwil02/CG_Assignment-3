@@ -1,0 +1,97 @@
+#include "ModelsManager.h"
+
+using namespace Managers;
+using namespace Rendering;
+
+ModelsManager::ModelsManager(ShaderManager* shaderManager, CameraManager* cameraManager,
+	CMD_OPTIONS options, std::string objDir)
+{
+	m_cameraManager = cameraManager;
+
+	Models::Triangle* triangle = new Models::Triangle();
+	Models::TextureObj* lambo = new Models::TextureObj();
+	Models::Island* island = new Models::Island();
+	Models::Sun* sun = new Models::Sun();
+	MultiPass::ShadowMap* sMap = new MultiPass::ShadowMap();
+
+	//Models::WireFrame* wireFrame = new Models::WireFrame();
+	//Models::GenericObj* genericLighting = new Models::GenericObj();
+
+	Models::SkyBox* skybox = new Models::SkyBox();
+	skybox->setCameraManager(m_cameraManager);
+	skybox->SetShader(shaderManager->getShaderHandle("skybox"));
+	skybox->Create();
+	m_gameModelList["01skybox"] = skybox;
+	
+	island->setCameraManager(m_cameraManager);
+	island->SetShader(shaderManager->getShaderHandle("shaded"));
+	island->Create("Rendering\\Models\\TestObjs\\Small_Tropical_Island\\Small_Tropical_Island.obj");
+	island->setPos(glm::translate(glm::mat4(1), glm::vec3(0, 0, 0)));
+	island->setScale(glm::scale(glm::mat4(1), glm::vec3(0.5, 0.5, 0.5)));
+	m_gameModelList["02island"] = island;
+	
+	sun->setCameraManager(m_cameraManager);
+	sun->SetShader(shaderManager->getShaderHandle("sun"));
+	sun->Create();
+	m_gameModelList["03Sun"] = sun;
+	sun->setPos(glm::translate(glm::mat4(1), glm::vec3(544, 378, -120)));
+	sun->setScale(glm::scale(glm::mat4(1), glm::vec3(0.025, 0.025, 0.025)));
+	
+	/*
+	lambo->setCameraManager(m_cameraManager);
+	lambo->SetShader(shaderManager->getShaderHandle("shaded"));
+	lambo->Create("Rendering\\Models\\TestObjs\\Lambo\\Avent.obj");
+	m_gameModelList["04lambo"] = lambo;
+	lambo->setPos(glm::translate(glm::mat4(1), glm::vec3(31.7, 2.4, 51.19)));
+	lambo->setScale(glm::scale(glm::mat4(1), glm::vec3(1, 1, 1)));
+	*/
+
+}
+
+ModelsManager::~ModelsManager()
+{
+	//auto is a map iterator
+	for (auto model : m_gameModelList)
+	{
+		delete model.second;
+	}
+	m_gameModelList.clear();
+}
+
+void ModelsManager::DeleteModel(const std::string& gameModelName)
+{
+	IGameObject* model = m_gameModelList[gameModelName];
+	model->Destroy();
+	m_gameModelList.erase(gameModelName);
+}
+
+const IGameObject& ModelsManager::GetModel(const std::string& gameModelName) const
+{
+	return (*m_gameModelList.at(gameModelName));
+}
+
+void ModelsManager::Update(unsigned int flags)
+{
+	//auto is a map iterator
+	for (auto model : m_gameModelList)
+	{
+		model.second->Update(flags);
+	}
+}
+
+void ModelsManager::Draw()
+{
+	shadowMap();
+	//auto is a map iterator
+	for (auto model : m_gameModelList)
+	{
+		model.second->Draw();
+	}
+}
+
+void ModelsManager::shadowMap()
+{
+	// Shadows //
+	sMap->addSceneData(, );
+}
+

@@ -1,0 +1,38 @@
+#ifndef MODEL_H
+#define MODEL_H
+
+#include <vector>
+#include "../IGameObject.h"
+#include "../../Managers/CameraManager.h"
+
+namespace Rendering
+{
+	namespace Models
+	{
+		class Model :public IGameObject
+		{
+		public:
+			Model();
+			virtual ~Model();
+			// methods from interface
+			virtual void Draw() override;
+			virtual void Update(unsigned int flags) override;
+			virtual void SetShader(GLuint shaderName) override;
+			virtual void Destroy() override;
+
+			virtual GLuint GetVao() const override;
+			virtual const std::vector<GLuint>& GetVbos() const override;
+
+			void setCameraManager(Managers::CameraManager* cam){ m_cameraManager = cam; }
+
+
+		protected:
+			std::vector<GLuint> m_vao;
+			GLuint m_shader;
+			std::vector<GLuint> m_vbos;
+
+			Managers::CameraManager* m_cameraManager;
+		};
+	}
+}
+#endif

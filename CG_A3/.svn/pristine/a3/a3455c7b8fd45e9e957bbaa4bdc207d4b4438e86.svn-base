@@ -1,0 +1,69 @@
+#pragma once
+
+#include "Model.h"
+#include "../../Utils/tiny_obj_loader.h"
+#include "../../Utils/stb_image.h"
+#include "../../OpenGL_headers.h"
+#include <string>
+#include <vector>
+#include <iostream>
+#include <fstream>
+
+namespace Rendering
+{
+	namespace Models
+	{
+
+		class TextureObj : public Rendering::Models::Model
+		{
+		public:
+			TextureObj();
+			~TextureObj();
+			void Create(std::string inputfile);
+			virtual void Update(unsigned int flags) override final;
+			virtual void Draw() override final;
+			void setScale(glm::mat4 scale){ m_scaleMat = scale; }
+			void setPos(glm::mat4 pos){ m_posMat = pos; }
+		private:
+			// Texturing //
+			std::vector<GLuint> m_texId;
+			void setTexUnit(unsigned int unit);
+			void setupTexture(GLuint& texId, tinyobj::material_t material, std::string basePath);
+
+			// Lighting //
+			void setupLightingProperties(tinyobj::material_t material);
+			void createLight(float objMaxCoord);
+			void pushLightingPropsToShader(int idx);
+			void pushMaterialPropsToShader(int idx);
+			
+			std::vector<MaterialProperties> m_materialProperties;
+			std::vector<LightProperties> m_lightProperties;
+
+			int m_lightingState;
+
+			// Vertices //
+			std::vector<unsigned int> m_indiciesLength;
+			unsigned int m_IdxLen;
+			unsigned int m_numShapes;
+
+			float m_scaleFactor;
+			float m_x_offset;
+
+			// Matrices //
+			glm::mat4 m_cameraMat;
+			glm::mat4 m_projMat;   // projection
+			glm::mat4 m_modleViewMat; // Pos * scale
+			glm::mat4 m_posMat; // pos only
+			glm::mat4 m_scaleMat;  // Scale only
+			glm::mat3 m_normalMat; // * by scale matrix in draw()
+
+			// Transparency //
+			std::vector< glm::vec3 > m_shapePos;
+			std::vector< float > m_distToShape;
+
+			void sortShapes();
+			void quickSort(int left, int right);
+
+		};
+	}
+}

@@ -1,0 +1,139 @@
+#include "SkyBox.h"
+
+using namespace Rendering;
+using namespace Models;
+using namespace std;
+
+#define BACK_ID		0
+#define FRONT_ID	1
+#define BOTTOM_ID	2
+#define TOP_ID		3
+#define LEFT_ID		4
+#define RIGHT_ID	5
+
+SkyBox::SkyBox()
+{
+}
+
+
+SkyBox::~SkyBox()
+{
+}
+
+void SkyBox::Draw()
+{
+	float x = 0;
+	float y = 0;
+	float z = 0;
+	float width = 100;
+	float height = 100;
+	float length = 100;
+
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	
+	// This is the most important function of this tutorial.  This function
+	// used to just create a silly colored cube in the RotateCube tutorial,
+	// but now it creates something beautiful.  You'll notice we added
+	// some more parameters to the function.  This way we can change the perspective
+	// of the sky box.  It doesn't really look good if it's a perfect cube.  Some
+	// textures look better at different ratios.  We assign the sky box textures
+	// to each side of the box creating the illusion of a detailed 3D world.
+	// You will notice I had to change the texture coordinates for every one
+	// to be flipped correctly.  Also, depending on your culling, the vertex
+	// order might need to be changed around.  I don't use culling in this tutorial
+	// so it will work fine here, but be sure to remember this if you do.
+
+	// Bind the BACK texture of the sky map to the BACK side of the cube
+	glBindTexture(GL_TEXTURE_2D, m_texture[BACK_ID]);
+
+	// Since we want the sky box to be centered around X, Y, and Z for ease,
+	// we do a little math to accomplish this.  We just change the X, Y and Z
+	// to perform this task.  If we just minus half the width, height and length
+	// from x, y and z it will give us the desired result.  Now when we create the
+	// box it will center it around (x, y, z)
+
+	// This centers the sky box around (x, y, z)
+	x = x - width / 2;
+	y = y - height / 2;
+	z = z - length / 2;
+
+	// Start drawing the side as a QUAD
+	glBegin(GL_QUADS);
+
+	// Assign the texture coordinates and vertices for the BACK Side
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(x + width, y, z);
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(x + width, y + height, z);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(x, y + height, z);
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(x, y, z);
+
+	glEnd();
+
+	// Bind the FRONT texture of the sky map to the FRONT side of the box
+	glBindTexture(GL_TEXTURE_2D, m_texture[FRONT_ID]);
+
+	// Start drawing the side as a QUAD
+	glBegin(GL_QUADS);
+
+	// Assign the texture coordinates and vertices for the FRONT Side
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(x, y, z + length);
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(x, y + height, z + length);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(x + width, y + height, z + length);
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(x + width, y, z + length);
+	glEnd();
+
+	// Bind the BOTTOM texture of the sky map to the BOTTOM side of the box
+	glBindTexture(GL_TEXTURE_2D, m_texture[BOTTOM_ID]);
+
+	// Start drawing the side as a QUAD
+	glBegin(GL_QUADS);
+
+	// Assign the texture coordinates and vertices for the BOTTOM Side
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(x, y, z);
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(x, y, z + length);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(x + width, y, z + length);
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(x + width, y, z);
+	glEnd();
+
+	// Bind the TOP texture of the sky map to the TOP side of the box
+	glBindTexture(GL_TEXTURE_2D, m_texture[TOP_ID]);
+
+	// Start drawing the side as a QUAD
+	glBegin(GL_QUADS);
+
+	// Assign the texture coordinates and vertices for the TOP Side
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(x + width, y + height, z);
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(x + width, y + height, z + length);
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(x, y + height, z + length);
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(x, y + height, z);
+
+	glEnd();
+
+	// Bind the LEFT texture of the sky map to the LEFT side of the box
+	glBindTexture(GL_TEXTURE_2D, m_texture[LEFT_ID]);
+
+	// Start drawing the side as a QUAD
+	glBegin(GL_QUADS);
+
+	// Assign the texture coordinates and vertices for the LEFT Side
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(x, y + height, z);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(x, y + height, z + length);
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(x, y, z + length);
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(x, y, z);
+
+	glEnd();
+
+	// Bind the RIGHT texture of the sky map to the RIGHT side of the box
+	glBindTexture(GL_TEXTURE_2D, m_texture[RIGHT_ID]);
+
+	// Start drawing the side as a QUAD
+	glBegin(GL_QUADS);
+
+	// Assign the texture coordinates and vertices for the RIGHT Side
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(x + width, y, z);
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(x + width, y, z + length);
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(x + width, y + height, z + length);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(x + width, y + height, z);
+	glEnd();
+}

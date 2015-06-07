@@ -1,0 +1,46 @@
+#pragma once
+
+#include "Model.h"
+#include "../../Utils/tiny_obj_loader.h"
+#include "../../OpenGL_headers.h"
+#include <string>
+#include <vector>
+#include <iostream>
+#include <fstream>
+
+
+
+namespace Rendering
+{
+	namespace Models
+	{
+		class GenericObj : public Rendering::Models::Model
+		{
+		public:
+			GenericObj();
+			~GenericObj();
+			void Create(std::string inputfile);
+			virtual void Update(unsigned int flags) override final;
+			virtual void Draw() override final;
+		private:
+			// Lighting //
+			void setupLightingProperties(tinyobj::material_t material);
+			void createLight(float objMaxCoord);
+			void pushLightingPropsToShader(int idx);
+			void pushMaterialPropsToShader(int idx);
+
+			std::vector<MaterialProperties> m_materialProperties;
+			std::vector<LightProperties> m_lightProperties;
+
+			int m_lightingState;
+
+			// Vertices //
+			//std::vector<unsigned int> m_indiciesLength;
+			unsigned int m_IdxLen;
+			unsigned int m_numShapes;
+
+			float m_scaleFactor;
+		};
+
+	}
+}
